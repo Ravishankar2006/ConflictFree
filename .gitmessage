@@ -1,0 +1,17 @@
+chore: architectural overhaul and ui redesign
+
+This commit introduces major architectural refactoring (monorepo & dockerization) and a complete visual redesign leveraging modern CSS techniques.
+
+Architectural Changes:
+- Restructured project into a monorepo setup using NPM Workspaces.
+- Moved frontend code to apps/web and renamed package to smart-timetable-web.
+- Moved Node.js API to apps/api.
+- Created root package.json for concurrent server execution.
+- Added Dockerfiles for both web and api layers.
+- Provided docker-compose.yml to spin up frontend, backend, and MySQL database locally.
+
+Design & UI Enhancements (Visual Excellence overhaul):
+- Updated typography to Google's 'Outfit' font family.
+- Re-architected theme.css to use dynamic, glassmorphic CSS variables and neon accents.
+- Modernized Login.css with a floating card, mesh gradient background, and glowing active inputs.
+- Enhanced Dashboard.css with a blurred, glass-like navigation bar and distinctly colored, glowing user role badges.

@@ -1,0 +1,87 @@
+:root {
+  /* Dynamic Mesh Dark Theme Colors */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #13131f;
+  
+  /* Glassmorphism Tokens */
+  --glass-bg: rgba(26, 26, 46, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.15);
+  
+  /* Text */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  
+  /* Vibrant Accents */
+  --accent-blue: #38bdf8;
+  --accent-blue-hover: #0284c7;
+  --accent-purple: #c084fc;
+  --accent-purple-hover: #9333ea;
+  --accent-green: #34d399;
+  --accent-red: #fb7185;
+  --accent-orange: #fb923c;
+  
+  /* Gradients */
+  --gradient-main: linear-gradient(135deg, #38bdf8, #c084fc);
+  --gradient-hover: linear-gradient(135deg, #0ea5e9, #a855f7);
+  
+  /* Dropshadows */
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+  --shadow-glow-blue: 0 4px 30px rgba(56, 189, 248, 0.25);
+  --shadow-glow-purple: 0 4px 30px rgba(192, 132, 252, 0.25);
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+  --spacing-2xl: 4rem;
+  
+  /* Border Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+  
+  /* Transitions */
+  --transition-fast: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-main, 'Outfit', sans-serif);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-purple);
+}
