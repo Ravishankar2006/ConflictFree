@@ -7,6 +7,21 @@ export async function register(req, res) {
   try {
     const { name, email, password, role } = req.body;
 
+    // Input validation
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ message: 'All fields (name, email, password, role) are required' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Invalid email address' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    const allowedRoles = ['student', 'faculty', 'admin'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await pool.query(
@@ -30,6 +45,10 @@ export async function register(req, res) {
 export async function login(req, res) {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
 
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
     const user = rows[0];
@@ -60,6 +79,33 @@ export async function login(req, res) {
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
+
+// GET /api/users?role=faculty|student|admin
+export async function listUsers(req, res) {
+  try {
+    const { role } = req.query;
+    const allowedRoles = ['student', 'faculty', 'admin'];
+
+    let query = 'SELECT id, name, email, role FROM users';
+    const params = [];
+
+    if (role) {
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).json({ message: `Invalid role filter. Use one of: ${allowedRoles.join(', ')}` });
+      }
+      query += ' WHERE role = ?';
+      params.push(role);
+    }
+
+    query += ' ORDER BY name';
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error in listUsers:', error);
     res.status(500).json({ message: 'Server error' });
   }
 }

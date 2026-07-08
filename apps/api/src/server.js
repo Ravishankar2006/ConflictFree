@@ -1,7 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './routes/auth.routes.js';  // ← note: auth.js (not auth.routes.js)
+import rateLimit from 'express-rate-limit';
+import authRoutes from './routes/auth.routes.js';
+import conflictRoutes from './routes/conflict.routes.js';
+import coursesRoutes from './routes/courses.routes.js';
+import enrollmentRoutes from './routes/enrollment.routes.js';
 import { testConnection } from './config/db.js';
 import timetableRoutes from './routes/timetable.routes.js';
 import process from 'process';
@@ -10,13 +14,30 @@ dotenv.config();
 
 const app = express();
 
-// Middleware (CRITICAL ORDER: before routes)
+// CORS — allow only configured origin (defaults to all in dev if not set)
+const allowedOrigin = process.env.CORS_ORIGIN || '*';
+app.use(cors({ origin: allowedOrigin }));
+
+// Body parsing (CRITICAL ORDER: before routes)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+
+// Rate limiting on auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: { message: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Routes
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/timetable', timetableRoutes);
+app.use('/api/conflicts', conflictRoutes);
+app.use('/api/courses', coursesRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'pong from API' });
 });
@@ -30,9 +51,6 @@ app.get('/api/db-test', async (req, res) => {
     res.status(500).json({ message: 'DB connection failed', error: err.message });
   }
 });
-
-// Auth routes (ONLY ONCE)
-app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {

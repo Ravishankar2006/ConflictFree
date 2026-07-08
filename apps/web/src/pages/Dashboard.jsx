@@ -1,55 +1,52 @@
+import { useState } from 'react';
+import { AuthProvider } from '../context/AuthContext';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
 import StudentDashboard from '../components/StudentDashboard';
 import FacultyDashboard from '../components/FacultyDashboard';
 import AdminDashboard from '../components/AdminDashboard';
 import '../styles/theme.css';
 import '../styles/Dashboard.css';
 
-export default function Dashboard() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+function DashboardContent() {
+  const { user } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('timetable');
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false); // Close on mobile after selection
   };
 
-  const renderDashboard = () => {
+  const renderContent = () => {
     switch (user?.role) {
       case 'student':
         return <StudentDashboard />;
       case 'faculty':
         return <FacultyDashboard />;
       case 'admin':
-        return <AdminDashboard />;
+        return <AdminDashboard activeTab={activeTab} onTabChange={setActiveTab} />;
       default:
-        return <div>Invalid role</div>;
+        return <div className="role-error">Unknown role. Please contact support.</div>;
     }
   };
 
-  const getRoleBadgeClass = () => {
-    return `role-badge role-${user?.role}`;
-  };
-
   return (
-    <div className="dashboard-container">
-      <nav className="navbar">
-        <h1 className="navbar-brand">⚡ Smart Timetable</h1>
-        <div className="navbar-user">
-          <span className="user-info">
-            <strong>{user?.name}</strong>
-            <span className={getRoleBadgeClass()}>{user?.role}</span>
-          </span>
-          <button onClick={handleLogout} className="btn-logout">
-            Logout
-          </button>
-        </div>
-      </nav>
-      
-      <div className="dashboard-content">
-        {renderDashboard()}
-      </div>
+    <div className="app-shell">
+      <Navbar onMenuToggle={() => setSidebarOpen(o => !o)} />
+      <Sidebar
+        open={sidebarOpen}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
+      <main className={`app-main ${user?.role === 'admin' ? 'app-main-with-sidebar' : ''}`}>
+        {renderContent()}
+      </main>
     </div>
   );
+}
+
+export default function Dashboard() {
+  return <DashboardContent />;
 }

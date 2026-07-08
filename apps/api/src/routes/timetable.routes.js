@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createSlot, getMyTimetable, getAllSlots, deleteSlot } from '../controllers/timetable.controller.js';
+import { createSlot, getMyTimetable, getAllSlots, deleteSlot, updateSlot } from '../controllers/timetable.controller.js';
 import { verifyToken, requireRole } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -12,6 +12,9 @@ router.get('/slots', verifyToken, requireRole('admin'), getAllSlots);
 
 // Create a new timetable slot (ADMIN ONLY)
 router.post('/slots', verifyToken, requireRole('admin'), createSlot);
+
+// Update (reschedule) a timetable slot (ADMIN ONLY)
+router.patch('/slots/:id', verifyToken, requireRole('admin'), updateSlot);
 
 // Delete a timetable slot (ADMIN ONLY)
 router.delete('/slots/:id', verifyToken, requireRole('admin'), deleteSlot);

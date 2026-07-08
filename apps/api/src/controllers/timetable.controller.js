@@ -10,6 +10,11 @@ export async function createSlot(req, res) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
+    // Validate time range
+    if (start_time >= end_time) {
+      return res.status(400).json({ message: 'end_time must be after start_time' });
+    }
+
     // Check for conflicts (same day + overlapping time + same room OR faculty)
     const [conflicts] = await pool.query(
       `
@@ -152,6 +157,61 @@ export async function deleteSlot(req, res) {
     res.json({ message: 'Slot deleted successfully' });
   } catch (error) {
     console.error('Error in deleteSlot:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+}
+
+// Update (reschedule) a timetable slot — admin only
+export async function updateSlot(req, res) {
+  try {
+    const { id } = req.params;
+    const { course_id, room, faculty_id, day, start_time, end_time } = req.body;
+
+    if (!course_id || !room || !faculty_id || !day || !start_time || !end_time) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+    if (start_time >= end_time) {
+      return res.status(400).json({ message: 'end_time must be after start_time' });
+    }
+
+    const [existing] = await pool.query('SELECT * FROM timetable_slots WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Slot not found' });
+    }
+
+    // Check conflicts, excluding the slot being updated
+    const [conflicts] = await pool.query(
+      `
+      SELECT * FROM timetable_slots
+      WHERE id != ?
+        AND day = ?
+        AND (? < end_time AND ? > start_time)
+        AND (room = ? OR faculty_id = ?)
+      `,
+      [id, day, start_time, end_time, room, faculty_id]
+    );
+
+    if (conflicts.length > 0) {
+      return res.status(409).json({
+        message: 'Cannot update slot: Conflict detected',
+        conflicts: conflicts.map(c => ({
+          id: c.id,
+          room: c.room,
+          day: c.day,
+          time: `${c.start_time.slice(0, 5)} - ${c.end_time.slice(0, 5)}`,
+          course_id: c.course_id
+        }))
+      });
+    }
+
+    await pool.query(
+      'UPDATE timetable_slots SET course_id=?, room=?, faculty_id=?, day=?, start_time=?, end_time=? WHERE id=?',
+      [course_id, room, faculty_id, day, start_time, end_time, id]
+    );
+
+    res.json({ message: 'Slot updated successfully' });
+  } catch (error) {
+    console.error('Error in updateSlot:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
