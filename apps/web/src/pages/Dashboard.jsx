@@ -40,7 +40,7 @@ function DashboardContent() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
       />
-      <main className={`app-main ${user?.role === 'admin' ? 'app-main-with-sidebar' : ''}`}>
+      <main className="app-main app-main-with-sidebar">
         {renderContent()}
       </main>
     </div>

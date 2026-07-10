@@ -126,3 +126,9 @@
   background: rgba(251, 113, 133, 0.15);
   border-color: rgba(251, 113, 133, 0.4);
 }
+
+@media (min-width: 900px) {
+  .nav-menu-btn {
+    display: none;
+  }
+}
