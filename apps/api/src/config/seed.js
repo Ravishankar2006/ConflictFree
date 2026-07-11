@@ -117,6 +117,46 @@ async function seed() {
     }
   }
 
+  // ─── Rooms ──────────────────────────────────────────────
+  const roomData = [
+    { name: 'Hall-A', capacity: 50 },
+    { name: 'Hall-B', capacity: 40 },
+    { name: 'Hall-C', capacity: 35 },
+    { name: 'Lab-101', capacity: 25 },
+    { name: 'Lab-102', capacity: 25 },
+  ];
+
+  console.log('\n🏛️ Creating rooms…');
+  for (const r of roomData) {
+    const [res] = await pool.query(
+      'INSERT IGNORE INTO rooms (name, capacity) VALUES (?, ?)',
+      [r.name, r.capacity]
+    );
+    if (res.insertId) {
+      console.log(`   ✅ ${r.name} (capacity: ${r.capacity})`);
+    } else {
+      console.log(`   ⏭️  ${r.name} already exists — skipped`);
+    }
+  }
+
+  // ─── Faculty Availability ─────────────────────────────────
+  const facultyEmails = ['anika@school.com', 'kiran@school.com', 'suresh@school.com'];
+  const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+
+  console.log('\n🕐 Setting faculty availability…');
+  for (const email of facultyEmails) {
+    const fId = userIds[email];
+    if (!fId) continue;
+    for (const day of DAYS) {
+      await pool.query(
+        `INSERT IGNORE INTO faculty_availability (faculty_id, day, start_time, end_time)
+         VALUES (?, ?, '08:00', '17:00')`,
+        [fId, day]
+      );
+    }
+    console.log(`   ✅ ${email.split('@')[0]} — MON-FRI 08:00-17:00`);
+  }
+
   // ─── Enrollments ─────────────────────────────────────────
   const studentEmails = ['alice@student.com', 'bob@student.com', 'carol@student.com', 'david@student.com', 'eva@student.com'];
   const allCourseCodes = Object.keys(courseIds);

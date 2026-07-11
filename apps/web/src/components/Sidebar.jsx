@@ -4,8 +4,10 @@ import './Sidebar.css';
 const NAV_ITEMS = {
   admin: [
     { key: 'timetable',   icon: '📅', label: 'Timetable' },
+    { key: 'scheduler',   icon: '🤖', label: 'AI Scheduler' },
     { key: 'conflicts',   icon: '⚠️', label: 'Conflicts' },
     { key: 'courses',     icon: '📚', label: 'Courses' },
+    { key: 'rooms',       icon: '🏛️', label: 'Rooms' },
     { key: 'enrollments', icon: '👥', label: 'Enrollments' },
   ],
   faculty: [

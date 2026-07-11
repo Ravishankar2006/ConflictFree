@@ -3,9 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.routes.js';
+import availabilityRoutes from './routes/availability.routes.js';
 import conflictRoutes from './routes/conflict.routes.js';
 import coursesRoutes from './routes/courses.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
+import roomsRoutes from './routes/rooms.routes.js';
+import schedulerRoutes from './routes/scheduler.routes.js';
 import { testConnection } from './config/db.js';
 import timetableRoutes from './routes/timetable.routes.js';
 import process from 'process';
@@ -34,9 +37,12 @@ const authLimiter = rateLimit({
 // Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/timetable', timetableRoutes);
+app.use('/api/timetable/generate', schedulerRoutes);
 app.use('/api/conflicts', conflictRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/rooms', roomsRoutes);
+app.use('/api/availability', availabilityRoutes);
 
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'pong from API' });

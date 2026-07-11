@@ -56,3 +56,23 @@ CREATE TABLE IF NOT EXISTS enrollments (
 
   UNIQUE KEY uq_enrollment (student_id, course_id)
 );
+
+-- ─── Rooms ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS rooms (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(50)  NOT NULL UNIQUE,
+  capacity   INT UNSIGNED NOT NULL DEFAULT 30,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ─── Faculty Availability ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS faculty_availability (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  faculty_id   INT UNSIGNED NOT NULL,
+  day         ENUM('MON','TUE','WED','THU','FRI','SAT') NOT NULL,
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+
+  FOREIGN KEY (faculty_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_faculty_day (faculty_id, day)
+);
