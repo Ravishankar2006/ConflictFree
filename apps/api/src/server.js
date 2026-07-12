@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.routes.js';
 import availabilityRoutes from './routes/availability.routes.js';
 import conflictRoutes from './routes/conflict.routes.js';
+import courseFacultyRoutes from './routes/course-faculty.routes.js';
 import coursesRoutes from './routes/courses.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
 import roomsRoutes from './routes/rooms.routes.js';
@@ -43,6 +44,7 @@ app.use('/api/courses', coursesRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/rooms', roomsRoutes);
 app.use('/api/availability', availabilityRoutes);
+app.use('/api/course-faculty', courseFacultyRoutes);
 
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'pong from API' });

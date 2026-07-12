@@ -6,6 +6,8 @@ import {
   getEnrollments, createEnrollment, deleteEnrollment,
   getUsers, getRooms, createRoom, deleteRoom,
   generateTimetable, applyTimetable,
+  getCourseFaculty, getAllAssignments, assignFaculty, removeFaculty,
+  createUser, deleteUser,
 } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
 import ToastContainer, { useToast } from './Toast';
@@ -355,16 +357,32 @@ function ConflictsTab({ toast }) {
 // Courses Tab
 // ═══════════════════════════════════════════════
 function CoursesTab({ toast }) {
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm]       = useState({ name: '', code: '' });
-  const [showForm, setShowForm] = useState(false);
+  const [courses, setCourses]       = useState([]);
+  const [faculty, setFaculty]       = useState([]);
+  const [assignments, setAssignments] = useState({}); // courseId -> [faculty]
+  const [loading, setLoading]       = useState(true);
+  const [form, setForm]             = useState({ name: '', code: '' });
+  const [showForm, setShowForm]     = useState(false);
+  const [expandedCourse, setExpandedCourse] = useState(null);
+  const [assignFacultyId, setAssignFacultyId] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getCourses();
-      setCourses(res.data);
+      const [coursesRes, facultyRes, assignRes] = await Promise.all([
+        getCourses(),
+        getUsers('faculty'),
+        getAllAssignments(),
+      ]);
+      setCourses(coursesRes.data);
+      setFaculty(facultyRes.data);
+
+      const map = {};
+      for (const a of assignRes.data) {
+        if (!map[a.course_id]) map[a.course_id] = [];
+        map[a.course_id].push({ id: a.faculty_id, name: a.faculty_name });
+      }
+      setAssignments(map);
     } catch {
       toast('Failed to load courses', 'error');
     } finally {
@@ -398,7 +416,33 @@ function CoursesTab({ toast }) {
     }
   };
 
+  const handleAssign = async (courseId) => {
+    if (!assignFacultyId) return;
+    try {
+      await assignFaculty(courseId, parseInt(assignFacultyId));
+      toast('Faculty assigned', 'success');
+      setAssignFacultyId('');
+      load();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to assign faculty', 'error');
+    }
+  };
+
+  const handleRemoveFaculty = async (courseId, facultyId, name) => {
+    if (!window.confirm(`Remove ${name} from this course?`)) return;
+    try {
+      await removeFaculty(courseId, facultyId);
+      toast('Faculty removed', 'success');
+      load();
+    } catch {
+      toast('Failed to remove faculty', 'error');
+    }
+  };
+
   if (loading) return <div className="loading" />;
+
+  const unassignedFaculty = (courseId) =>
+    faculty.filter(f => !(assignments[courseId] || []).some(a => a.id === f.id));
 
   return (
     <div className="admin-tab">
@@ -433,20 +477,60 @@ function CoursesTab({ toast }) {
         <div className="table-container">
           <div className="table-wrapper">
             <table>
-              <thead><tr><th>ID</th><th>Code</th><th>Name</th><th>Action</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Code</th><th>Name</th><th>Assigned Faculty</th><th>Action</th>
+                </tr>
+              </thead>
               <tbody>
                 {courses.map(c => (
                   <tr key={c.id}>
-                    <td>{c.id}</td>
                     <td><span className="course-code-badge">{c.code}</span></td>
                     <td>{c.name}</td>
                     <td>
+                      {(assignments[c.id] || []).map(f => (
+                        <span key={f.id} className="faculty-chip">
+                          {f.name}
+                          <button className="chip-remove" onClick={() => handleRemoveFaculty(c.id, f.id, f.name)}>✕</button>
+                        </span>
+                      ))}
+                      {(assignments[c.id] || []).length === 0 && <span className="text-muted">No faculty assigned</span>}
+                    </td>
+                    <td className="table-actions">
+                      <button className="btn-edit-small" onClick={() => setExpandedCourse(expandedCourse === c.id ? null : c.id)}>
+                        👨‍🏫
+                      </button>
                       <button className="btn-delete-small" onClick={() => handleDelete(c.id, c.code)}>🗑️</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {expandedCourse && (
+              <div className="assign-panel">
+                <div className="assign-panel-inner">
+                  <strong className="assign-panel-title">Assign Faculty</strong>
+                  <div className="assign-form">
+                    <select
+                      value={assignFacultyId}
+                      onChange={e => setAssignFacultyId(e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="">Select faculty…</option>
+                      {unassignedFaculty(expandedCourse).map(f => (
+                        <option key={f.id} value={f.id}>{f.name} ({f.email})</option>
+                      ))}
+                    </select>
+                    <button className="btn-submit" onClick={() => handleAssign(expandedCourse)} disabled={!assignFacultyId}>
+                      Assign
+                    </button>
+                    <button className="btn-ghost" onClick={() => { setExpandedCourse(null); setAssignFacultyId(''); }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -662,6 +746,136 @@ function RoomsTab({ toast }) {
                     <td>{r.capacity}</td>
                     <td>
                       <button className="btn-delete-small" onClick={() => handleDelete(r.id, r.name)}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// Users Tab
+// ═══════════════════════════════════════════════
+function UsersTab({ toast }) {
+  const [users, setUsers]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [form, setForm]           = useState({ name: '', email: '', password: '', role: 'student' });
+  const [showForm, setShowForm]   = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getUsers(roleFilter === 'all' ? undefined : roleFilter);
+      setUsers(res.data);
+    } catch {
+      toast('Failed to load users', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast, roleFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      await createUser(form);
+      toast('User created', 'success');
+      setForm({ name: '', email: '', password: '', role: 'student' });
+      setShowForm(false);
+      load();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to create user', 'error');
+    }
+  };
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Delete user ${name}? This action cannot be undone.`)) return;
+    try {
+      await deleteUser(id);
+      toast(`User ${name} deleted`, 'success');
+      load();
+    } catch {
+      toast('Failed to delete user', 'error');
+    }
+  };
+
+  if (loading) return <div className="loading" />;
+
+  return (
+    <div className="admin-tab">
+      <div className="tab-controls">
+        <h2 className="tab-title">👤 User Management ({users.length})</h2>
+        <div className="tab-controls-right">
+          <select
+            value={roleFilter}
+            onChange={e => setRoleFilter(e.target.value)}
+            className="form-input filter-select"
+          >
+            <option value="all">All Roles</option>
+            <option value="faculty">Faculty</option>
+            <option value="student">Students</option>
+          </select>
+          <button className="btn-create" onClick={() => setShowForm(s => !s)}>
+            {showForm ? '✕ Cancel' : '+ New User'}
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className="form-card form-card-compact">
+          <form onSubmit={handleCreate} className="form-inline">
+            <input
+              type="text" placeholder="Full Name" value={form.name}
+              onChange={e => setForm({...form, name: e.target.value})}
+              className="form-input" required
+            />
+            <input
+              type="email" placeholder="Email" value={form.email}
+              onChange={e => setForm({...form, email: e.target.value})}
+              className="form-input" required
+            />
+            <input
+              type="password" placeholder="Password" value={form.password}
+              onChange={e => setForm({...form, password: e.target.value})}
+              className="form-input" required minLength={6}
+            />
+            <select
+              value={form.role}
+              onChange={e => setForm({...form, role: e.target.value})}
+              className="form-input"
+            >
+              <option value="student">Student</option>
+              <option value="faculty">Faculty</option>
+            </select>
+            <button type="submit" className="btn-submit">Create</button>
+          </form>
+        </div>
+      )}
+
+      {users.length === 0 ? (
+        <div className="empty-state">No users found.</div>
+      ) : (
+        <div className="table-container">
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id}>
+                    <td>{u.name}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{u.email}</td>
+                    <td><span className={`role-badge role-${u.role}`}>{u.role}</span></td>
+                    <td>
+                      <button className="btn-delete-small" onClick={() => handleDelete(u.id, u.name)}>🗑️</button>
                     </td>
                   </tr>
                 ))}
@@ -940,6 +1154,7 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
       case 'courses':     return <CoursesTab       toast={addToast} />;
       case 'enrollments': return <EnrollmentsTab   toast={addToast} />;
       case 'rooms':       return <RoomsTab         toast={addToast} />;
+      case 'users':       return <UsersTab         toast={addToast} />;
       case 'scheduler':   return <SchedulerTab     toast={addToast} />;
       default:            return <TimetableTab     toast={addToast} />;
     }
@@ -955,6 +1170,7 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
             {activeTab === 'conflicts'   && '⚠️ Conflict Resolution'}
             {activeTab === 'courses'     && '📚 Course Management'}
             {activeTab === 'rooms'       && '🏛️ Room Management'}
+            {activeTab === 'users'       && '👤 User Management'}
             {activeTab === 'enrollments' && '👥 Enrollment Management'}
           </h1>
         </div>

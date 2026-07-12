@@ -44,12 +44,19 @@ function generateTimeSlots(startMin, endMin, duration) {
   return slots;
 }
 
-function buildCourseOfferings(courses, enrollmentsByCourse, rooms) {
+function buildCourseOfferings(courses, enrollmentsByCourse, rooms, courseFaculty) {
+  const facultyByCourse = {};
+  for (const cf of courseFaculty) {
+    if (!facultyByCourse[cf.course_id]) facultyByCourse[cf.course_id] = [];
+    facultyByCourse[cf.course_id].push(cf.faculty_id);
+  }
+
   return courses.map(course => {
     const enrolledStudents = enrollmentsByCourse[course.id] || [];
     const neededCapacity = enrolledStudents.length;
 
     const suitableRooms = rooms.filter(r => r.capacity >= neededCapacity);
+    const assignedFacultyIds = facultyByCourse[course.id] || [];
 
     return {
       courseId: course.id,
@@ -58,6 +65,7 @@ function buildCourseOfferings(courses, enrollmentsByCourse, rooms) {
       enrolledStudents,
       studentCount: enrolledStudents.length,
       suitableRoomIds: suitableRooms.map(r => r.id),
+      assignedFacultyIds,
       difficultyScore: suitableRooms.length === 0 ? 999 : 1 / suitableRooms.length
     };
   }).filter(o => o.suitableRoomIds.length > 0)
@@ -133,7 +141,7 @@ function getRoomDayLoad(assigned) {
   return load;
 }
 
-function scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad) {
+function scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad, randomize) {
   let score = 0;
 
   const dl = dayLoad[candidate.day] || 0;
@@ -149,10 +157,14 @@ function scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad) 
   if (startHour >= 8 && startHour < 10) score -= 5;
   else if (startHour >= 12 && startHour < 14) score += 3;
 
+  if (randomize) {
+    score += (Math.random() - 0.5) * 40;
+  }
+
   return score;
 }
 
-function tryPlaceSlot(offering, days, timeSlots, faculty, rooms, assigned, facultyAvailMap, maxAttempts, attemptsRef) {
+function tryPlaceSlot(offering, days, timeSlots, faculty, rooms, assigned, facultyAvailMap, maxAttempts, attemptsRef, randomize) {
   const candidates = [];
 
   for (const day of days) {
@@ -194,7 +206,7 @@ function tryPlaceSlot(offering, days, timeSlots, faculty, rooms, assigned, facul
           const dayLoad = getDayLoad(assigned, days);
           const facultyLoad = getFacultyLoad(assigned);
           const roomDayLoad = getRoomDayLoad(assigned);
-          const score = scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad);
+          const score = scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad, randomize);
 
           candidates.push({ candidate, score });
         }
@@ -228,22 +240,24 @@ function tryPlaceSlot(offering, days, timeSlots, faculty, rooms, assigned, facul
   return false;
 }
 
-export function generateTimetable({ courses, faculty, rooms, enrollments, availability, params }) {
+export function generateTimetable({ courses, faculty, rooms, enrollments, availability, courseFaculty, params }) {
   const enrollmentsByCourse = getEnrollmentsByCourse(enrollments);
   const facultyAvailMap = getFacultyAvailabilityMap(availability);
+  const courseFacultyList = courseFaculty || [];
 
   const startTime = params?.startTime || '08:00';
   const endTime = params?.endTime || '17:00';
   const slotDuration = params?.slotDuration || 90;
   const excludedDays = params?.excludedDays || [];
   const slotsPerCourse = params?.slotsPerCourse || 1;
+  const randomize = params?.randomize !== false;
 
   const gridStart = timeToMinutes(startTime);
   const gridEnd = timeToMinutes(endTime);
   const days = ALL_DAYS.filter(d => !excludedDays.includes(d));
 
   const timeSlots = generateTimeSlots(gridStart, gridEnd, slotDuration);
-  const offerings = buildCourseOfferings(courses, enrollmentsByCourse, rooms);
+  const offerings = buildCourseOfferings(courses, enrollmentsByCourse, rooms, courseFacultyList);
 
   const assigned = [];
   const unplacedRequests = [];
@@ -253,12 +267,18 @@ export function generateTimetable({ courses, faculty, rooms, enrollments, availa
 
   for (const offering of offerings) {
     let placedCount = 0;
+    const eligibleFaculty = offering.assignedFacultyIds.length > 0
+      ? faculty.filter(f => offering.assignedFacultyIds.includes(f.id))
+      : faculty;
+    if (eligibleFaculty.length === 0) continue;
+
     for (let i = 0; i < slotsPerCourse; i++) {
       if (attemptsRef.current >= maxAttempts) break;
 
+      const shuffledFaculty = randomize ? [...eligibleFaculty].sort(() => Math.random() - 0.5) : eligibleFaculty;
       const placed = tryPlaceSlot(
-        offering, days, timeSlots, faculty, rooms, assigned,
-        facultyAvailMap, maxAttempts, attemptsRef
+        offering, days, timeSlots, shuffledFaculty, rooms, assigned,
+        facultyAvailMap, maxAttempts, attemptsRef, randomize
       );
 
       if (placed) {
@@ -303,7 +323,8 @@ export function generateTimetable({ courses, faculty, rooms, enrollments, availa
       endTime,
       slotDuration,
       excludedDays,
-      slotsPerCourse
+      slotsPerCourse,
+      randomize
     },
     stats: {
       total_courses: offerings.length,

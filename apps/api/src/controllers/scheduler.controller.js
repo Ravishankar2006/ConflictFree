@@ -9,6 +9,7 @@ export async function generate(req, res) {
     const [rooms] = await pool.query('SELECT id, name, capacity FROM rooms');
     const [enrollments] = await pool.query('SELECT student_id, course_id FROM enrollments');
     const [availability] = await pool.query('SELECT * FROM faculty_availability');
+    const [courseFaculty] = await pool.query('SELECT course_id, faculty_id FROM course_faculty');
 
     if (rooms.length === 0) {
       return res.status(400).json({ message: 'No rooms defined. Add rooms before generating.' });
@@ -24,6 +25,7 @@ export async function generate(req, res) {
       rooms,
       enrollments,
       availability,
+      courseFaculty,
       params: req.body
     });
 

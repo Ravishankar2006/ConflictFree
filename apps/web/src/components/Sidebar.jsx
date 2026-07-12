@@ -8,6 +8,7 @@ const NAV_ITEMS = {
     { key: 'conflicts',   icon: '⚠️', label: 'Conflicts' },
     { key: 'courses',     icon: '📚', label: 'Courses' },
     { key: 'rooms',       icon: '🏛️', label: 'Rooms' },
+    { key: 'users',       icon: '👤', label: 'Users' },
     { key: 'enrollments', icon: '👥', label: 'Enrollments' },
   ],
   faculty: [

@@ -157,6 +157,27 @@ async function seed() {
     console.log(`   ✅ ${email.split('@')[0]} — MON-FRI 08:00-17:00`);
   }
 
+  // ─── Course-Faculty Assignments ────────────────────────────
+  const courseFacultyMap = [
+    { course: 'CS101', faculty: 'anika@school.com' },
+    { course: 'CS201', faculty: 'kiran@school.com' },
+    { course: 'CS301', faculty: 'suresh@school.com' },
+    { course: 'CS401', faculty: 'anika@school.com' },
+    { course: 'CS501', faculty: 'kiran@school.com' },
+  ];
+
+  console.log('\n👨‍🏫 Assigning faculty to courses…');
+  for (const cf of courseFacultyMap) {
+    const cId = courseIds[cf.course];
+    const fId = userIds[cf.faculty];
+    if (!cId || !fId) continue;
+    await pool.query(
+      'INSERT IGNORE INTO course_faculty (course_id, faculty_id) VALUES (?, ?)',
+      [cId, fId]
+    );
+    console.log(`   ✅ ${cf.course} → ${cf.faculty.split('@')[0]}`);
+  }
+
   // ─── Enrollments ─────────────────────────────────────────
   const studentEmails = ['alice@student.com', 'bob@student.com', 'carol@student.com', 'david@student.com', 'eva@student.com'];
   const allCourseCodes = Object.keys(courseIds);

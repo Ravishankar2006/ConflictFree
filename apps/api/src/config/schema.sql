@@ -65,6 +65,17 @@ CREATE TABLE IF NOT EXISTS rooms (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ─── Course-Faculty Assignment ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS course_faculty (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  course_id  INT UNSIGNED NOT NULL,
+  faculty_id INT UNSIGNED NOT NULL,
+
+  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE,
+  FOREIGN KEY (faculty_id) REFERENCES users(id)    ON DELETE CASCADE,
+  UNIQUE KEY uq_course_faculty (course_id, faculty_id)
+);
+
 -- ─── Faculty Availability ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS faculty_availability (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -3,6 +3,45 @@ import jwt from 'jsonwebtoken';
 import process from 'process';
 import pool from '../config/db.js';
 
+// POST /api/auth/users — admin creates a user with any role
+export async function createUser(req, res) {
+  try {
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ message: 'All fields (name, email, password, role) are required' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Invalid email address' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    const allowedRoles = ['student', 'faculty', 'admin'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [result] = await pool.query(
+      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+      [name, email, hashedPassword, role]
+    );
+
+    res.status(201).json({
+      message: 'User created successfully',
+      userId: result.insertId
+    });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
+
 export async function register(req, res) {
   try {
     const { name, email, password, role } = req.body;
@@ -106,6 +145,24 @@ export async function listUsers(req, res) {
     res.json(rows);
   } catch (error) {
     console.error('Error in listUsers:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
+
+// DELETE /api/auth/users/:id — admin deletes a user
+export async function deleteUser(req, res) {
+  try {
+    const { id } = req.params;
+
+    const [existing] = await pool.query('SELECT id FROM users WHERE id = ?', [id]);
+    if (!existing.length) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error in deleteUser:', error);
     res.status(500).json({ message: 'Server error' });
   }
 }

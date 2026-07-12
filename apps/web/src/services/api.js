@@ -58,4 +58,14 @@ export const deleteAvailability = (id)     => api.delete(`/api/availability/${id
 export const generateTimetable  = (data)   => api.post('/api/timetable/generate', data);
 export const applyTimetable     = (data)   => api.post('/api/timetable/generate/apply', data);
 
+// ─── Course-Faculty Assignment ──────────────────────────────────────────────
+export const getCourseFaculty    = (cid)   => api.get(`/api/course-faculty/${cid}`);
+export const getAllAssignments   = ()      => api.get('/api/course-faculty');
+export const assignFaculty       = (cid, fid) => api.post(`/api/course-faculty/${cid}`, { faculty_id: fid });
+export const removeFaculty       = (cid, fid) => api.delete(`/api/course-faculty/${cid}/${fid}`);
+
+// ─── Admin User Management ───────────────────────────────────────────────────
+export const createUser = (data)  => api.post('/api/auth/users', data);
+export const deleteUser = (id)    => api.delete(`/api/auth/users/${id}`);
+
 export default api;
