@@ -22,6 +22,7 @@ function TimetableTab({ toast }) {
   const [slots, setSlots]           = useState([]);
   const [courses, setCourses]       = useState([]);
   const [faculty, setFaculty]       = useState([]);
+  const [rooms, setRooms]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [formData, setFormData]     = useState(EMPTY_SLOT);
   const [editingId, setEditingId]   = useState(null);
@@ -31,14 +32,16 @@ function TimetableTab({ toast }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [slotsRes, coursesRes, facultyRes] = await Promise.all([
+      const [slotsRes, coursesRes, facultyRes, roomsRes] = await Promise.all([
         getAllSlots(),
         getCourses(),
         getUsers('faculty'),
+        getRooms(),
       ]);
       setSlots(slotsRes.data);
       setCourses(coursesRes.data);
       setFaculty(facultyRes.data);
+      setRooms(roomsRes.data);
     } catch {
       toast('Failed to load timetable data', 'error');
     } finally {
@@ -173,12 +176,16 @@ function TimetableTab({ toast }) {
             </div>
             <div className="form-group">
               <label className="form-label">Room</label>
-              <input
-                type="text"
+              <select
                 value={formData.room}
                 onChange={e => setFormData({...formData, room: e.target.value})}
-                className="form-input" placeholder="e.g. Lab-101" required
-              />
+                className="form-input" required
+              >
+                <option value="">Select a room…</option>
+                {rooms.map(r => (
+                  <option key={r.id} value={r.name}>{r.name} (capacity: {r.capacity})</option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label className="form-label">Day</label>
@@ -680,6 +687,7 @@ function SchedulerTab({ toast }) {
     startTime: '08:00',
     endTime: '17:00',
     slotDuration: 90,
+    slotsPerCourse: 1,
     excludedDays: [],
     clearExisting: true,
   });
@@ -702,6 +710,7 @@ function SchedulerTab({ toast }) {
         startTime: config.startTime,
         endTime: config.endTime,
         slotDuration: config.slotDuration,
+        slotsPerCourse: config.slotsPerCourse,
         excludedDays: config.excludedDays,
       });
       setGenerated(res.data);
@@ -786,6 +795,15 @@ function SchedulerTab({ toast }) {
                   <option value={90}>90 min</option>
                   <option value={120}>120 min</option>
                 </select>
+              </div>
+              <div className="scheduler-param-group">
+                <label className="scheduler-param-label">Slots / Course</label>
+                <input
+                  type="number" min={1} max={10}
+                  value={config.slotsPerCourse}
+                  onChange={e => updateConfig('slotsPerCourse', parseInt(e.target.value) || 1)}
+                  className="form-input scheduler-param-input"
+                />
               </div>
             </div>
 

@@ -152,6 +152,82 @@ function scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad) 
   return score;
 }
 
+function tryPlaceSlot(offering, days, timeSlots, faculty, rooms, assigned, facultyAvailMap, maxAttempts, attemptsRef) {
+  const candidates = [];
+
+  for (const day of days) {
+    for (const ts of timeSlots) {
+      const startStr = minutesToTime(ts.start);
+      const endStr = minutesToTime(ts.end);
+
+      for (const facultyMember of faculty) {
+        if (attemptsRef.current >= maxAttempts) break;
+
+        if (!checkFacultyAvailability(facultyAvailMap, facultyMember.id, day, ts.start, ts.end)) {
+          attemptsRef.current++;
+          continue;
+        }
+
+        for (const roomId of offering.suitableRoomIds) {
+          attemptsRef.current++;
+
+          const candidate = {
+            course_id: offering.courseId,
+            course_code: offering.courseCode,
+            course_name: offering.courseName,
+            faculty_id: facultyMember.id,
+            faculty_name: facultyMember.name,
+            room: rooms.find(r => r.id === roomId)?.name || '',
+            roomId,
+            day,
+            start_time: startStr,
+            end_time: endStr,
+            start: ts.start,
+            end: ts.end,
+            enrolledStudents: offering.enrolledStudents
+          };
+
+          if (checkRoomConflict(candidate, assigned)) continue;
+          if (checkFacultyConflict(candidate, assigned)) continue;
+          if (checkStudentConflict(candidate, assigned)) continue;
+
+          const dayLoad = getDayLoad(assigned, days);
+          const facultyLoad = getFacultyLoad(assigned);
+          const roomDayLoad = getRoomDayLoad(assigned);
+          const score = scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad);
+
+          candidates.push({ candidate, score });
+        }
+        if (attemptsRef.current >= maxAttempts) break;
+      }
+      if (attemptsRef.current >= maxAttempts) break;
+    }
+    if (attemptsRef.current >= maxAttempts) break;
+  }
+
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => a.score - b.score);
+    const best = candidates[0].candidate;
+    assigned.push({
+      course_id: best.course_id,
+      course_code: best.course_code,
+      course_name: best.course_name,
+      faculty_id: best.faculty_id,
+      faculty_name: best.faculty_name,
+      room: best.room,
+      roomId: best.roomId,
+      day: best.day,
+      start_time: best.start_time,
+      end_time: best.end_time,
+      start: best.start,
+      end: best.end,
+      enrolledStudents: best.enrolledStudents
+    });
+    return true;
+  }
+  return false;
+}
+
 export function generateTimetable({ courses, faculty, rooms, enrollments, availability, params }) {
   const enrollmentsByCourse = getEnrollmentsByCourse(enrollments);
   const facultyAvailMap = getFacultyAvailabilityMap(availability);
@@ -160,6 +236,7 @@ export function generateTimetable({ courses, faculty, rooms, enrollments, availa
   const endTime = params?.endTime || '17:00';
   const slotDuration = params?.slotDuration || 90;
   const excludedDays = params?.excludedDays || [];
+  const slotsPerCourse = params?.slotsPerCourse || 1;
 
   const gridStart = timeToMinutes(startTime);
   const gridEnd = timeToMinutes(endTime);
@@ -169,88 +246,37 @@ export function generateTimetable({ courses, faculty, rooms, enrollments, availa
   const offerings = buildCourseOfferings(courses, enrollmentsByCourse, rooms);
 
   const assigned = [];
-  const unassigned = [];
-  const maxAttempts = 50000;
-  let attempts = 0;
+  const unplacedRequests = [];
+  let totalUnplaced = 0;
+  const maxAttempts = 100000;
+  const attemptsRef = { current: 0 };
 
   for (const offering of offerings) {
-    let placed = false;
-    const candidates = [];
+    let placedCount = 0;
+    for (let i = 0; i < slotsPerCourse; i++) {
+      if (attemptsRef.current >= maxAttempts) break;
 
-    for (const day of days) {
-      for (const ts of timeSlots) {
-        const startStr = minutesToTime(ts.start);
-        const endStr = minutesToTime(ts.end);
+      const placed = tryPlaceSlot(
+        offering, days, timeSlots, faculty, rooms, assigned,
+        facultyAvailMap, maxAttempts, attemptsRef
+      );
 
-        for (const facultyMember of faculty) {
-          if (attempts >= maxAttempts) break;
-
-          if (!checkFacultyAvailability(facultyAvailMap, facultyMember.id, day, ts.start, ts.end)) {
-            attempts++;
-            continue;
-          }
-
-          for (const roomId of offering.suitableRoomIds) {
-            attempts++;
-
-            const candidate = {
-              course_id: offering.courseId,
-              course_code: offering.courseCode,
-              course_name: offering.courseName,
-              faculty_id: facultyMember.id,
-              faculty_name: facultyMember.name,
-              room: rooms.find(r => r.id === roomId)?.name || '',
-              roomId,
-              day,
-              start_time: startStr,
-              end_time: endStr,
-              start: ts.start,
-              end: ts.end,
-              enrolledStudents: offering.enrolledStudents
-            };
-
-            if (checkRoomConflict(candidate, assigned)) continue;
-            if (checkFacultyConflict(candidate, assigned)) continue;
-            if (checkStudentConflict(candidate, assigned)) continue;
-
-            const dayLoad = getDayLoad(assigned, days);
-            const facultyLoad = getFacultyLoad(assigned);
-            const roomDayLoad = getRoomDayLoad(assigned);
-            const score = scoreCandidate(candidate, assigned, dayLoad, facultyLoad, roomDayLoad);
-
-            candidates.push({ candidate, score });
-          }
-          if (attempts >= maxAttempts) break;
-        }
-        if (attempts >= maxAttempts) break;
+      if (placed) {
+        placedCount++;
+      } else {
+        break;
       }
-      if (attempts >= maxAttempts) break;
     }
 
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => a.score - b.score);
-      const best = candidates[0].candidate;
-      const clean = {
-        course_id: best.course_id,
-        course_code: best.course_code,
-        course_name: best.course_name,
-        faculty_id: best.faculty_id,
-        faculty_name: best.faculty_name,
-        room: best.room,
-        roomId: best.roomId,
-        day: best.day,
-        start_time: best.start_time,
-        end_time: best.end_time,
-        start: best.start,
-        end: best.end,
-        enrolledStudents: best.enrolledStudents
-      };
-      assigned.push(clean);
-      placed = true;
-    }
-
-    if (!placed) {
-      unassigned.push(offering);
+    if (placedCount < slotsPerCourse) {
+      const missed = slotsPerCourse - placedCount;
+      totalUnplaced += missed;
+      unplacedRequests.push({
+        courseId: offering.courseId,
+        courseCode: offering.courseCode,
+        courseName: offering.courseName,
+        reason: `Placed ${placedCount}/${slotsPerCourse} — ${missed} slot(s) could not be scheduled`
+      });
     }
   }
 
@@ -266,23 +292,25 @@ export function generateTimetable({ courses, faculty, rooms, enrollments, availa
       start_time: s.start_time,
       end_time: s.end_time
     })),
-    unassigned: unassigned.map(u => ({
+    unassigned: unplacedRequests.map(u => ({
       course_id: u.courseId,
       course_code: u.courseCode,
       course_name: u.courseName,
-      reason: u.suitableRoomIds.length === 0 ? 'No suitable room capacity' : 'Could not find conflict-free slot'
+      reason: u.reason
     })),
     config: {
       startTime,
       endTime,
       slotDuration,
-      excludedDays
+      excludedDays,
+      slotsPerCourse
     },
     stats: {
       total_courses: offerings.length,
+      total_slots_requested: offerings.length * slotsPerCourse,
       placed: assigned.length,
-      unplaced: unassigned.length,
-      attempts
+      unplaced: totalUnplaced,
+      attempts: attemptsRef.current
     }
   };
 }
