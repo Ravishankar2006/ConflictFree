@@ -50,9 +50,11 @@ export const createRoom   = (data)   => api.post('/api/rooms', data);
 export const deleteRoom   = (id)     => api.delete(`/api/rooms/${id}`);
 
 // ─── Faculty Availability ────────────────────────────────────────────────────
-export const getAvailability    = (fId)    => api.get(`/api/availability/${fId}`);
-export const setAvailability    = (data)   => api.post('/api/availability', data);
-export const deleteAvailability = (id)     => api.delete(`/api/availability/${id}`);
+export const getAvailability       = (fId)    => api.get(`/api/availability/${fId}`);
+export const setAvailability       = (data)   => api.post('/api/availability', data);
+export const deleteAvailability    = (id)     => api.delete(`/api/availability/${id}`);
+export const getMyAvailability     = ()       => api.get('/api/availability/me');
+export const updateMyAvailability  = (data)   => api.put('/api/availability/me', data);
 
 // ─── AI Scheduler ────────────────────────────────────────────────────────────
 export const generateTimetable  = (data)   => api.post('/api/timetable/generate', data);

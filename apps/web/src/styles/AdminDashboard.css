@@ -324,8 +324,9 @@ tbody tr:last-child td { border-bottom: none; }
   border-radius: 9999px;
 }
 
-.type-room    { background: rgba(56, 189, 248, 0.1); color: var(--accent-blue, #38bdf8); }
-.type-faculty { background: rgba(192, 132, 252, 0.1); color: var(--accent-purple, #c084fc); }
+.type-room        { background: rgba(56, 189, 248, 0.1); color: var(--accent-blue, #38bdf8); }
+.type-faculty     { background: rgba(192, 132, 252, 0.1); color: var(--accent-purple, #c084fc); }
+.type-availability { background: rgba(239, 68, 68, 0.1); color: var(--accent-red, #ef4444); }
 
 .conflict-day {
   font-size: 0.8rem;

@@ -10,6 +10,7 @@ import {
   createUser, deleteUser,
 } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
+import ConfirmModal from './ConfirmModal';
 import ToastContainer, { useToast } from './Toast';
 import '../styles/AdminDashboard.css';
 
@@ -30,6 +31,7 @@ function TimetableTab({ toast }) {
   const [editingId, setEditingId]   = useState(null);
   const [showForm, setShowForm]     = useState(false);
   const [viewMode, setViewMode]     = useState('calendar'); // 'calendar' | 'table'
+  const [confirm, setConfirm]       = useState({ open: false, id: null });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,14 +92,19 @@ function TimetableTab({ toast }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this slot?')) return;
+  const handleDelete = (id) => {
+    setConfirm({ open: true, id });
+  };
+
+  const executeDelete = async () => {
     try {
-      await deleteSlot(id);
+      await deleteSlot(confirm.id);
       toast('Slot deleted', 'success');
       load();
     } catch {
       toast('Failed to delete slot', 'error');
+    } finally {
+      setConfirm({ open: false, id: null });
     }
   };
 
@@ -260,6 +267,16 @@ function TimetableTab({ toast }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete Slot"
+        message="Are you sure you want to delete this timetable slot? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirm({ open: false, id: null })}
+      />
     </div>
   );
 }
@@ -270,6 +287,7 @@ function TimetableTab({ toast }) {
 function ConflictsTab({ toast }) {
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [confirm, setConfirm]     = useState({ open: false, slotId: null, label: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -286,13 +304,18 @@ function ConflictsTab({ toast }) {
   useEffect(() => { load(); }, [load]);
 
   const handleResolve = async (slotId, label) => {
-    if (!window.confirm(`Delete slot "${label}" to resolve this conflict?`)) return;
+    setConfirm({ open: true, slotId, label });
+  };
+
+  const confirmResolve = async () => {
     try {
-      await resolveConflict(slotId);
+      await resolveConflict(confirm.slotId);
       toast('Conflict resolved — slot deleted', 'success');
+      setConfirm({ open: false, slotId: null, label: '' });
       load();
     } catch {
       toast('Failed to resolve conflict', 'error');
+      setConfirm({ open: false, slotId: null, label: '' });
     }
   };
 
@@ -315,40 +338,69 @@ function ConflictsTab({ toast }) {
           {conflicts.map((c, i) => (
             <div key={i} className="conflict-card">
               <div className="conflict-meta">
-                <span className={`conflict-type-badge ${c.conflictType === 'ROOM' ? 'type-room' : 'type-faculty'}`}>
-                  {c.conflictType === 'ROOM' ? '🏫 Room' : '👤 Faculty'} Conflict
+                <span className={`conflict-type-badge ${
+                  c.conflictType === 'ROOM' ? 'type-room' : 
+                  c.conflictType === 'FACULTY' ? 'type-faculty' : 'type-availability'
+                }`}>
+                  {c.conflictType === 'ROOM' && '🏫 Room Conflict'}
+                  {c.conflictType === 'FACULTY' && '👤 Faculty Conflict'}
+                  {c.conflictType === 'AVAILABILITY' && '⏰ Availability Conflict'}
                 </span>
                 <span className="conflict-day">{c.day}</span>
               </div>
               <div className="conflict-slots">
                 <div className="conflict-slot-a">
                   <strong>{c.courseA}</strong>
-                  <span>{c.timeA} · {c.conflictType === 'ROOM' ? c.room : c.facultyName}</span>
+                  <span>{c.timeA} · {c.facultyName} ({c.room})</span>
                 </div>
-                <div className="conflict-vs">↔</div>
-                <div className="conflict-slot-b">
-                  <strong>{c.courseB}</strong>
-                  <span>{c.timeB} · {c.conflictType === 'ROOM' ? c.room : c.facultyName}</span>
-                </div>
+                {c.conflictType !== 'AVAILABILITY' ? (
+                  <>
+                    <div className="conflict-vs">↔</div>
+                    <div className="conflict-slot-b">
+                      <strong>{c.courseB}</strong>
+                      <span>{c.timeB} · {c.conflictType === 'ROOM' ? c.room : c.facultyName}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="conflict-vs">🚫</div>
+                    <div className="conflict-slot-b">
+                      <strong>Unavailable Time</strong>
+                      <span style={{ color: 'var(--accent-red)' }}>{c.timeB}</span>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="conflict-actions">
                 <button
                   className="btn-resolve"
                   onClick={() => handleResolve(c.slotAId, c.courseA)}
                 >
-                  Remove Slot A ({c.courseA.split('—')[0].trim()})
+                  Remove Slot ({c.courseA.split('—')[0].trim()})
                 </button>
-                <button
-                  className="btn-resolve btn-resolve-b"
-                  onClick={() => handleResolve(c.slotBId, c.courseB)}
-                >
-                  Remove Slot B ({c.courseB.split('—')[0].trim()})
-                </button>
+                {c.conflictType !== 'AVAILABILITY' && (
+                  <button
+                    className="btn-resolve btn-resolve-b"
+                    onClick={() => handleResolve(c.slotBId, c.courseB)}
+                  >
+                    Remove Slot B ({c.courseB.split('—')[0].trim()})
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Remove Slot"
+        message={`Delete slot "${confirm.label}" to resolve this conflict? This action cannot be undone.`}
+        confirmLabel="Delete Slot"
+        cancelLabel="Cancel"
+        onConfirm={confirmResolve}
+        onCancel={() => setConfirm({ open: false, slotId: null, label: '' })}
+      />
     </div>
   );
 }
@@ -365,6 +417,7 @@ function CoursesTab({ toast }) {
   const [showForm, setShowForm]     = useState(false);
   const [expandedCourse, setExpandedCourse] = useState(null);
   const [assignFacultyId, setAssignFacultyId] = useState('');
+  const [confirm, setConfirm]         = useState({ open: false, type: '', data: null });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -405,15 +458,8 @@ function CoursesTab({ toast }) {
     }
   };
 
-  const handleDelete = async (id, code) => {
-    if (!window.confirm(`Delete course ${code}? This will affect existing slots!`)) return;
-    try {
-      await deleteCourse(id);
-      toast(`Course ${code} deleted`, 'success');
-      load();
-    } catch {
-      toast('Failed to delete course', 'error');
-    }
+  const handleDelete = (id, code) => {
+    setConfirm({ open: true, type: 'deleteCourse', data: { id, code } });
   };
 
   const handleAssign = async (courseId) => {
@@ -428,14 +474,25 @@ function CoursesTab({ toast }) {
     }
   };
 
-  const handleRemoveFaculty = async (courseId, facultyId, name) => {
-    if (!window.confirm(`Remove ${name} from this course?`)) return;
+  const handleRemoveFaculty = (courseId, facultyId, name) => {
+    setConfirm({ open: true, type: 'removeFaculty', data: { courseId, facultyId, name } });
+  };
+
+  const executeConfirm = async () => {
+    const { type, data } = confirm;
     try {
-      await removeFaculty(courseId, facultyId);
-      toast('Faculty removed', 'success');
+      if (type === 'deleteCourse') {
+        await deleteCourse(data.id);
+        toast(`Course ${data.code} deleted`, 'success');
+      } else if (type === 'removeFaculty') {
+        await removeFaculty(data.courseId, data.facultyId);
+        toast('Faculty removed', 'success');
+      }
       load();
     } catch {
-      toast('Failed to remove faculty', 'error');
+      toast('Failed to complete action', 'error');
+    } finally {
+      setConfirm({ open: false, type: '', data: null });
     }
   };
 
@@ -534,6 +591,20 @@ function CoursesTab({ toast }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title={confirm.type === 'deleteCourse' ? 'Delete Course' : 'Remove Faculty'}
+        message={
+          confirm.type === 'deleteCourse'
+            ? `Delete course ${confirm.data?.code}? This will affect existing slots!`
+            : `Remove ${confirm.data?.name} from this course?`
+        }
+        confirmLabel={confirm.type === 'deleteCourse' ? 'Delete' : 'Remove'}
+        cancelLabel="Cancel"
+        onConfirm={executeConfirm}
+        onCancel={() => setConfirm({ open: false, type: '', data: null })}
+      />
     </div>
   );
 }
@@ -548,6 +619,7 @@ function EnrollmentsTab({ toast }) {
   const [loading, setLoading]         = useState(true);
   const [form, setForm]               = useState({ student_id: '', course_id: '' });
   const [showForm, setShowForm]       = useState(false);
+  const [confirm, setConfirm]         = useState({ open: false, id: null });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -580,14 +652,19 @@ function EnrollmentsTab({ toast }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Remove this enrollment?')) return;
+  const handleDelete = (id) => {
+    setConfirm({ open: true, id });
+  };
+
+  const executeDelete = async () => {
     try {
-      await deleteEnrollment(id);
+      await deleteEnrollment(confirm.id);
       toast('Enrollment removed', 'success');
       load();
     } catch {
       toast('Failed to remove enrollment', 'error');
+    } finally {
+      setConfirm({ open: false, id: null });
     }
   };
 
@@ -651,6 +728,16 @@ function EnrollmentsTab({ toast }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Remove Enrollment"
+        message="Are you sure you want to remove this student enrollment? This will remove them from the course."
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirm({ open: false, id: null })}
+      />
     </div>
   );
 }
@@ -663,6 +750,7 @@ function RoomsTab({ toast }) {
   const [loading, setLoading]   = useState(true);
   const [form, setForm]         = useState({ name: '', capacity: 30 });
   const [showForm, setShowForm] = useState(false);
+  const [confirm, setConfirm]   = useState({ open: false, id: null, name: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -691,14 +779,19 @@ function RoomsTab({ toast }) {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete room ${name}?`)) return;
+  const handleDelete = (id, name) => {
+    setConfirm({ open: true, id, name });
+  };
+
+  const executeDelete = async () => {
     try {
-      await deleteRoom(id);
-      toast(`Room ${name} deleted`, 'success');
+      await deleteRoom(confirm.id);
+      toast(`Room ${confirm.name} deleted`, 'success');
       load();
     } catch {
       toast('Failed to delete room', 'error');
+    } finally {
+      setConfirm({ open: false, id: null, name: '' });
     }
   };
 
@@ -754,6 +847,16 @@ function RoomsTab({ toast }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete Room"
+        message={`Are you sure you want to delete room "${confirm.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirm({ open: false, id: null, name: '' })}
+      />
     </div>
   );
 }
@@ -767,6 +870,7 @@ function UsersTab({ toast }) {
   const [roleFilter, setRoleFilter] = useState('all');
   const [form, setForm]           = useState({ name: '', email: '', password: '', role: 'student' });
   const [showForm, setShowForm]   = useState(false);
+  const [confirm, setConfirm]   = useState({ open: false, id: null, name: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -795,14 +899,19 @@ function UsersTab({ toast }) {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete user ${name}? This action cannot be undone.`)) return;
+  const handleDelete = (id, name) => {
+    setConfirm({ open: true, id, name });
+  };
+
+  const executeDelete = async () => {
     try {
-      await deleteUser(id);
-      toast(`User ${name} deleted`, 'success');
+      await deleteUser(confirm.id);
+      toast(`User ${confirm.name} deleted`, 'success');
       load();
     } catch {
       toast('Failed to delete user', 'error');
+    } finally {
+      setConfirm({ open: false, id: null, name: '' });
     }
   };
 
@@ -884,6 +993,16 @@ function UsersTab({ toast }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete User"
+        message={`Are you sure you want to delete user "${confirm.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirm({ open: false, id: null, name: '' })}
+      />
     </div>
   );
 }
