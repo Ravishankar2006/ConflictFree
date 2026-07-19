@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getMyTimetable, getMyAvailability, updateMyAvailability } from '../services/api';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
+import { getMyTimetable, getMyAvailability, updateMyAvailability, downloadIcs } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
 import '../styles/FacultyDashboard.css';
 
@@ -162,6 +163,9 @@ export default function FacultyDashboard() {
   const [error, setError]         = useState('');
   const [viewMode, setViewMode]   = useState('calendar');
   const [message, setMessage]     = useState(null);
+  const printRef = useRef();
+
+  const handlePrint = useReactToPrint({ contentRef: printRef });
 
   const toast = (msg, type) => {
     setMessage({ msg, type });
@@ -244,14 +248,22 @@ export default function FacultyDashboard() {
 
       {tab === 'schedule' && (
         <>
-          <div className="dash-header">
-            <h2 className="dashboard-title">🎓 My Teaching Schedule</h2>
-            <div className="view-toggle">
-              <button className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('calendar')}>📅 Calendar</button>
-              <button className={viewMode === 'list' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('list')}>☰ List</button>
+          <div ref={printRef}>
+            <div className="dash-header">
+              <h2 className="dashboard-title">🎓 My Teaching Schedule</h2>
+              <div className="screen-only dash-header-right">
+                <div className="view-toggle">
+                  <button className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('calendar')}>📅 Calendar</button>
+                  <button className={viewMode === 'list' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('list')}>☰ List</button>
+                </div>
+                <div className="export-buttons">
+                  <button className="btn-export" onClick={() => downloadIcs().catch(() => {})} title="Download .ics calendar file">📅 ICS</button>
+                  <button className="btn-export" onClick={handlePrint} title="Print / Save as PDF">🖨️ PDF</button>
+                </div>
+              </div>
             </div>
+            <ScheduleView timetable={timetable} viewMode={viewMode} setViewMode={setViewMode} />
           </div>
-          <ScheduleView timetable={timetable} viewMode={viewMode} setViewMode={setViewMode} />
         </>
       )}
 

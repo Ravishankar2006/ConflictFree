@@ -159,3 +159,340 @@
   font-size: 0.6rem;
   color: var(--text-muted, #64748b);
 }
+
+/* ═══════════════════════════════════════════════
+   PRINT UTILITY CLASSES
+   ═══════════════════════════════════════════════ */
+@media screen {
+  .print-only { display: none !important; }
+}
+@media print {
+  .screen-only { display: none !important; }
+}
+
+/* ═══════════════════════════════════════════════
+   PRINT MEDIA STYLES (High-Quality PDF/Print)
+   ═══════════════════════════════════════════════ */
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  /* Force background colors to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide non-printable app UI elements */
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .sidebar, 
+  .navbar, 
+  .dash-header-right, 
+  .tab-controls, 
+  .faculty-tabs, 
+  .violation-banner, 
+  .stats-grid,
+  .confirm-overlay,
+  .toast-message {
+    display: none !important;
+  }
+
+  /* Adjust page containers for full screen print area */
+  .admin-dashboard, 
+  .faculty-dashboard, 
+  .student-dashboard {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    background: transparent !important;
+  }
+
+  .dashboard-title {
+    margin-bottom: 1.5rem !important;
+    color: #1e293b !important;
+    font-size: 1.5rem !important;
+    text-align: center;
+  }
+
+  /* Reset Calendar for Print */
+  .cal-wrapper {
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 0.5rem !important;
+    overflow: visible !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+  }
+
+  .cal-header-row {
+    background: #f8fafc !important;
+    border-bottom: 1.5px solid #cbd5e1 !important;
+    position: relative !important;
+  }
+
+  .cal-header-gutter {
+    border-right: 1.5px solid #cbd5e1 !important;
+  }
+
+  .cal-header-day {
+    border-right: 1.5px solid #cbd5e1 !important;
+  }
+
+  .cal-day-short {
+    color: #1e3a8a !important; /* Rich Dark Blue */
+    font-weight: 800 !important;
+  }
+
+  .cal-day-full {
+    color: #475569 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Expand body height to print the whole day without scrolls */
+  .cal-body {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .cal-gutter {
+    border-right: 1.5px solid #cbd5e1 !important;
+  }
+
+  .cal-time-cell.cal-hour {
+    color: #334155 !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  .cal-day-col {
+    border-right: 1.5px solid #cbd5e1 !important;
+    min-height: 600px !important; /* Keep a nice proportion on paper */
+  }
+
+  .cal-gridline-hour { 
+    background: #e2e8f0 !important; 
+    height: 1px !important;
+  }
+  
+  .cal-gridline-half { 
+    background: #f1f5f9 !important; 
+    height: 1px !important;
+  }
+
+  /* Style Slots with rich contrast but light backgrounds */
+  .cal-slot {
+    background: #eff6ff !important; /* Light blue */
+    border: 1px solid #bfdbfe !important;
+    border-left: 4px solid #3b82f6 !important; /* Thick left border */
+    color: #1e3a8a !important;
+    box-shadow: none !important;
+    transform: none !important;
+    border-radius: 4px !important;
+  }
+
+  /* Give different courses slightly different colors for print */
+  .cal-slot:nth-child(2n) {
+    background: #ecfdf5 !important; /* Light green */
+    border-color: #a7f3d0 !important;
+    border-left-color: #10b981 !important;
+    color: #064e3b !important;
+  }
+
+  .cal-slot:nth-child(3n) {
+    background: #faf5ff !important; /* Light purple */
+    border-color: #e9d5ff !important;
+    border-left-color: #8b5cf6 !important;
+    color: #4c1d95 !important;
+  }
+
+  .cal-slot:nth-child(4n) {
+    background: #fffbeb !important; /* Light orange */
+    border-color: #fef3c7 !important;
+    border-left-color: #f59e0b !important;
+    color: #78350f !important;
+  }
+
+  .cal-slot-code {
+    color: inherit !important;
+    font-size: 0.75rem !important;
+    font-weight: 800 !important;
+  }
+
+  .cal-slot-name {
+    color: #334155 !important;
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+  }
+
+  .cal-slot-meta {
+    color: #475569 !important;
+    font-size: 0.6rem !important;
+    font-weight: 500 !important;
+  }
+
+  /* ── Table View Print Styles ────────────────────── */
+  .table-container {
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 0.5rem !important;
+    color: #0f172a !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    background: #f8fafc !important;
+    position: relative !important;
+  }
+
+  th {
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 0.7rem !important;
+    text-transform: uppercase !important;
+    border-bottom: 1.5px solid #cbd5e1 !important;
+  }
+
+  td {
+    padding: 0.625rem 1rem !important;
+    color: #334155 !important;
+    font-size: 0.8rem !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  tr:last-child td {
+    border-bottom: none !important;
+  }
+
+  .table-actions,
+  .btn-edit-small,
+  .btn-delete-small {
+    display: none !important;
+  }
+
+  /* ── List View (timetable-grid) Print Styles ─────── */
+  .timetable-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    gap: 1rem !important;
+  }
+
+  .day-card {
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    padding: 1rem !important;
+    box-shadow: none !important;
+  }
+
+  .day-card.faculty {
+    border-color: #d1fae5 !important;
+  }
+
+  .day-header {
+    color: #1e3a8a !important;
+    font-weight: 800 !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 2px solid #bfdbfe !important;
+  }
+
+  .day-header.faculty {
+    color: #065f46 !important;
+    border-bottom-color: #a7f3d0 !important;
+  }
+
+  .no-classes {
+    color: #64748b !important;
+    font-style: italic !important;
+  }
+
+  .slot-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .slot-item {
+    background: #f8fafc !important;
+    padding: 0.75rem !important;
+    border-radius: 0.375rem !important;
+    border-left: 4px solid #3b82f6 !important;
+  }
+
+  .slot-item.faculty {
+    border-left-color: #10b981 !important;
+  }
+
+  .slot-course-code {
+    font-weight: 700 !important;
+    font-size: 0.9rem !important;
+    color: #1e3a8a !important;
+  }
+
+  .slot-course-name {
+    color: #334155 !important;
+    font-size: 0.8rem !important;
+  }
+
+  .slot-details {
+    color: #475569 !important;
+    font-size: 0.75rem !important;
+  }
+
+  .slot-time,
+  .slot-room,
+  .slot-faculty {
+    color: #475569 !important;
+  }
+
+  /* ── Empty State Print Styles ───────────────────── */
+  .empty-state {
+    padding: 3rem 1.5rem !important;
+    text-align: center !important;
+    color: #475569 !important;
+    font-size: 0.95rem !important;
+    border: 1px dashed #cbd5e1 !important;
+    border-radius: 0.5rem !important;
+  }
+
+  /* ── Stats Grid Print Styles ────────────────────── */
+  .stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .stat-card {
+    background: #f8fafc !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    padding: 1rem !important;
+    text-align: center !important;
+  }
+
+  .stat-value {
+    font-size: 1.75rem !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+  }
+
+  .stat-label {
+    font-size: 0.7rem !important;
+    color: #475569 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+}

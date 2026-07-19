@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import {
   getAllSlots, createSlot, updateSlot, deleteSlot,
   getConflicts, resolveConflict,
@@ -7,7 +8,7 @@ import {
   getUsers, getRooms, createRoom, deleteRoom,
   generateTimetable, applyTimetable,
   getCourseFaculty, getAllAssignments, assignFaculty, removeFaculty,
-  createUser, deleteUser,
+  createUser, deleteUser, downloadIcs,
 } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
 import ConfirmModal from './ConfirmModal';
@@ -32,6 +33,8 @@ function TimetableTab({ toast }) {
   const [showForm, setShowForm]     = useState(false);
   const [viewMode, setViewMode]     = useState('calendar'); // 'calendar' | 'table'
   const [confirm, setConfirm]       = useState({ open: false, id: null });
+  const printRef = useRef();
+  const handlePrint = useReactToPrint({ contentRef: printRef });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,39 +122,30 @@ function TimetableTab({ toast }) {
 
   return (
     <div className="admin-tab">
-      {/* Stats */}
-      <div className="stats-grid">
-        {[
-          { label: 'Total Slots', value: stats.total,   color: 'blue'   },
-          { label: 'Courses',     value: stats.courses, color: 'green'  },
-          { label: 'Faculty',     value: stats.faculty, color: 'purple' },
-          { label: 'Rooms',       value: stats.rooms,   color: 'orange' },
-        ].map(s => (
-          <div key={s.label} className={`stat-card ${s.color}`}>
-            <div className="stat-value">{s.value}</div>
-            <div className="stat-label">{s.label}</div>
+      {/* Controls (screen only) */}
+      <div className="screen-only tab-controls">
+        <div className="tab-controls-left">
+          <div className="view-toggle">
+            <button
+              className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'}
+              onClick={() => setViewMode('calendar')}
+            >📅 Calendar</button>
+            <button
+              className={viewMode === 'table' ? 'toggle-btn active' : 'toggle-btn'}
+              onClick={() => setViewMode('table')}
+            >📋 Table</button>
           </div>
-        ))}
-      </div>
-
-      {/* Controls */}
-      <div className="tab-controls">
-        <div className="view-toggle">
-          <button
-            className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'}
-            onClick={() => setViewMode('calendar')}
-          >📅 Calendar</button>
-          <button
-            className={viewMode === 'table' ? 'toggle-btn active' : 'toggle-btn'}
-            onClick={() => setViewMode('table')}
-          >📋 Table</button>
+          <div className="export-buttons">
+            <button className="btn-export" onClick={() => downloadIcs().catch(() => {})} title="Download .ics calendar file">📅 ICS</button>
+            <button className="btn-export" onClick={handlePrint} title="Print / Save as PDF">🖨️ PDF</button>
+          </div>
         </div>
         <button className="btn-create" onClick={openCreate}>+ New Slot</button>
       </div>
 
-      {/* Create/Edit Form */}
+      {/* Create/Edit Form (screen only) */}
       {showForm && (
-        <div className="form-card">
+        <div className="screen-only form-card">
           <div className="form-card-header">
             <h3>{editingId ? '✏️ Edit Slot' : '+ Create New Slot'}</h3>
             <button className="btn-icon-close" onClick={closeForm}>✕</button>
@@ -232,22 +226,38 @@ function TimetableTab({ toast }) {
         </div>
       )}
 
-      {/* View */}
-      {slots.length === 0 ? (
-        <div className="empty-state">No timetable slots yet. Create one above.</div>
-      ) : viewMode === 'calendar' ? (
-        <TimetableCalendar slots={slots} />
-      ) : (
-        <div className="table-container">
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th><th>Course</th><th>Faculty</th>
-                  <th>Day</th><th>Time</th><th>Room</th><th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+      {/* Print area: stats + timetable (full content for PDF) */}
+      <div ref={printRef}>
+        <h2 className="print-only dashboard-title">📅 Timetable</h2>
+        <div className="stats-grid">
+          {[
+            { label: 'Total Slots', value: stats.total,   color: 'blue'   },
+            { label: 'Courses',     value: stats.courses, color: 'green'  },
+            { label: 'Faculty',     value: stats.faculty, color: 'purple' },
+            { label: 'Rooms',       value: stats.rooms,   color: 'orange' },
+          ].map(s => (
+            <div key={s.label} className={`stat-card ${s.color}`}>
+              <div className="stat-value">{s.value}</div>
+              <div className="stat-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {slots.length === 0 ? (
+          <div className="empty-state">No timetable slots yet.</div>
+        ) : (
+          viewMode === 'calendar' ? (
+            <TimetableCalendar slots={slots} />
+          ) : (
+            <div className="table-container">
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th><th>Course</th><th>Faculty</th>
+                      <th>Day</th><th>Time</th><th>Room</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {slots.map(slot => (
                   <tr key={slot.id}>
                     <td>{slot.id}</td>
@@ -256,17 +266,14 @@ function TimetableTab({ toast }) {
                     <td>{slot.day}</td>
                     <td>{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</td>
                     <td>{slot.room}</td>
-                    <td className="table-actions">
-                      <button className="btn-edit-small" onClick={() => openEdit(slot)}>✏️</button>
-                      <button className="btn-delete-small" onClick={() => handleDelete(slot.id)}>🗑️</button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-      )}
+      ))}
+    </div>
 
       <ConfirmModal
         open={confirm.open}

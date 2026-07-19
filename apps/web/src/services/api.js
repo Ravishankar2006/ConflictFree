@@ -29,6 +29,20 @@ export const getAllSlots     = ()           => api.get('/api/timetable/slots');
 export const createSlot     = (data)       => api.post('/api/timetable/slots', data);
 export const updateSlot     = (id, data)   => api.patch(`/api/timetable/slots/${id}`, data);
 export const deleteSlot     = (id)         => api.delete(`/api/timetable/slots/${id}`);
+export const exportIcal     = ()           => api.get('/api/timetable/export/ical', { responseType: 'blob' });
+
+export function downloadIcs() {
+  return api.get('/api/timetable/export/ical', { responseType: 'blob' }).then(res => {
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'timetable.ics';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  });
+}
 
 // ─── Conflicts ───────────────────────────────────────────────────────────────
 export const getConflicts    = ()   => api.get('/api/conflicts');

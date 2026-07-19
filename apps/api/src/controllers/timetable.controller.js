@@ -215,3 +215,96 @@ export async function updateSlot(req, res) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
+
+// ─── iCal Export ────────────────────────────────────────────────
+const DAY_OFFSET = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5 };
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0=Sun, 1=Mon …
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function formatIcalDate(date, time) {
+  const d = new Date(date);
+  const [h, m] = time.split(':');
+  d.setHours(parseInt(h), parseInt(m), 0, 0);
+  return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+export async function exportIcal(req, res) {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    let rows;
+    if (role === 'student') {
+      [rows] = await pool.query(
+        `SELECT ts.*, c.name AS course_name, c.code AS course_code, u.name AS faculty_name
+         FROM timetable_slots ts
+         JOIN enrollments e ON e.course_id = ts.course_id
+         JOIN courses c ON c.id = ts.course_id
+         JOIN users u ON u.id = ts.faculty_id
+         WHERE e.student_id = ?
+         ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time`,
+        [userId]
+      );
+    } else if (role === 'faculty') {
+      [rows] = await pool.query(
+        `SELECT ts.*, c.name AS course_name, c.code AS course_code
+         FROM timetable_slots ts
+         JOIN courses c ON c.id = ts.course_id
+         WHERE ts.faculty_id = ?
+         ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time`,
+        [userId]
+      );
+    } else {
+      [rows] = await pool.query(
+        `SELECT ts.*, c.name AS course_name, c.code AS course_code, u.name AS faculty_name
+         FROM timetable_slots ts
+         JOIN courses c ON c.id = ts.course_id
+         JOIN users u ON u.id = ts.faculty_id
+         ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time`
+      );
+    }
+
+    const monday = getMonday(new Date());
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Smart Timetable//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+    ];
+
+    for (const slot of rows) {
+      const eventDate = new Date(monday);
+      eventDate.setDate(monday.getDate() + DAY_OFFSET[slot.day]);
+      const dtStart = formatIcalDate(eventDate, slot.start_time.slice(0, 5));
+      const dtEnd   = formatIcalDate(eventDate, slot.end_time.slice(0, 5));
+      const summary = `${slot.course_code} – ${slot.course_name}`;
+      const desc = `Room: ${slot.room}${slot.faculty_name ? `\\nFaculty: ${slot.faculty_name}` : ''}`;
+
+      lines.push('BEGIN:VEVENT');
+      lines.push(`DTSTART:${dtStart}`);
+      lines.push(`DTEND:${dtEnd}`);
+      lines.push('RRULE:FREQ=WEEKLY;COUNT=16');
+      lines.push(`SUMMARY:${summary}`);
+      lines.push(`DESCRIPTION:${desc}`);
+      lines.push(`LOCATION:${slot.room}`);
+      lines.push('END:VEVENT');
+    }
+
+    lines.push('END:VCALENDAR');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=timetable.ics');
+    res.send(lines.join('\r\n'));
+  } catch (error) {
+    console.error('Error in exportIcal:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+}
