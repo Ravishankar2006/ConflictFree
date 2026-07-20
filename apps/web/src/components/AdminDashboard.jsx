@@ -120,6 +120,29 @@ function TimetableTab({ toast }) {
     rooms:   new Set(slots.map(s => s.room)).size,
   };
 
+  const handleSlotMove = async (slotId, data) => {
+    const slot = slots.find(s => s.id === slotId);
+    if (!slot) return;
+    try {
+      await updateSlot(slotId, {
+        course_id: slot.course_id,
+        room: slot.room,
+        faculty_id: slot.faculty_id,
+        day: data.day,
+        start_time: data.start_time,
+        end_time: data.end_time,
+      });
+      toast('Slot rescheduled successfully', 'success');
+      load();
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to reschedule slot';
+      toast(msg, 'error');
+      if (err.response?.data?.conflicts?.length) {
+        toast(`${err.response.data.conflicts.length} conflict(s) detected`, 'error');
+      }
+    }
+  };
+
   return (
     <div className="admin-tab">
       {/* Controls (screen only) */}
@@ -246,7 +269,7 @@ function TimetableTab({ toast }) {
           <div className="empty-state">No timetable slots yet.</div>
         ) : (
           viewMode === 'calendar' ? (
-            <TimetableCalendar slots={slots} />
+            <TimetableCalendar slots={slots} onSlotMove={handleSlotMove} />
           ) : (
             <div className="table-container">
               <div className="table-wrapper">
