@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import analyticsRoutes from './routes/analytics.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import availabilityRoutes from './routes/availability.routes.js';
 import conflictRoutes from './routes/conflict.routes.js';
@@ -36,6 +37,7 @@ const authLimiter = rateLimit({
 });
 
 // Routes
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/timetable/generate', schedulerRoutes);

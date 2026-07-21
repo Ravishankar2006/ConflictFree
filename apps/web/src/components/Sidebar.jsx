@@ -5,6 +5,7 @@ const NAV_ITEMS = {
   admin: [
     { key: 'timetable',   icon: '📅', label: 'Timetable' },
     { key: 'scheduler',   icon: '🤖', label: 'AI Scheduler' },
+    { key: 'analytics',   icon: '📊', label: 'Analytics' },
     { key: 'conflicts',   icon: '⚠️', label: 'Conflicts' },
     { key: 'courses',     icon: '📚', label: 'Courses' },
     { key: 'rooms',       icon: '🏛️', label: 'Rooms' },

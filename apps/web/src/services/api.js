@@ -84,4 +84,11 @@ export const removeFaculty       = (cid, fid) => api.delete(`/api/course-faculty
 export const createUser = (data)  => api.post('/api/auth/users', data);
 export const deleteUser = (id)    => api.delete(`/api/auth/users/${id}`);
 
+// ─── Analytics ───────────────────────────────────────────────────────────────
+export const getAnalyticsOverview = () => api.get('/api/analytics/overview');
+export const getFacultyWorkload   = () => api.get('/api/analytics/faculty-workload');
+export const getRoomUtilization   = () => api.get('/api/analytics/room-utilization');
+export const getDailyDistribution = () => api.get('/api/analytics/daily-distribution');
+export const getTimeDistribution  = () => api.get('/api/analytics/time-distribution');
+
 export default api;

@@ -13,6 +13,7 @@ import {
 import TimetableCalendar from './TimetableCalendar';
 import ConfirmModal from './ConfirmModal';
 import ToastContainer, { useToast } from './Toast';
+import AnalyticsTab from './AnalyticsTab';
 import '../styles/AdminDashboard.css';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -1299,6 +1300,7 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
 
   const renderTab = () => {
     switch (activeTab) {
+      case 'analytics':   return <AnalyticsTab     toast={addToast} />;
       case 'conflicts':   return <ConflictsTab    toast={addToast} />;
       case 'courses':     return <CoursesTab       toast={addToast} />;
       case 'enrollments': return <EnrollmentsTab   toast={addToast} />;
@@ -1321,6 +1323,7 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
             {activeTab === 'rooms'       && '🏛️ Room Management'}
             {activeTab === 'users'       && '👤 User Management'}
             {activeTab === 'enrollments' && '👥 Enrollment Management'}
+            {activeTab === 'analytics'   && '📊 Timetable Analytics'}
           </h1>
         </div>
         {renderTab()}
