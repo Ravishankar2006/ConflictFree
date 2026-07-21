@@ -160,11 +160,12 @@
   color: var(--text-muted, #64748b);
 }
 
-/* ── Drag & Drop (Native HTML5) ────────────── */
+/* ── Drag & Drop ──────────────────────────── */
 .cal-slot-draggable {
   cursor: grab;
   user-select: none;
   transition: box-shadow 0.15s ease;
+  z-index: 1;
 }
 
 .cal-slot-draggable:hover {
@@ -177,7 +178,7 @@
 }
 
 .cal-slot-dragging-source {
-  opacity: 0.35;
+  opacity: 0.3 !important;
 }
 
 .cal-day-col-droppable {
@@ -189,6 +190,34 @@
   outline: 2px dashed var(--accent-blue, #38bdf8);
   outline-offset: -2px;
   border-radius: 8px;
+}
+
+/* ── Drop indicator line ───────────────────── */
+.cal-drop-line {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: var(--accent-blue, #38bdf8);
+  border-radius: 2px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+
+.cal-drop-time {
+  position: absolute;
+  right: 100%;
+  margin-right: 8px;
+  top: -8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent-blue, #38bdf8);
+  background: rgba(15, 15, 30, 0.9);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════

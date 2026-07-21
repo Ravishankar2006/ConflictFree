@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 
 import './TimetableCalendar.css';
 
@@ -75,41 +75,14 @@ function SlotContent({ slot, color }) {
       <div className="cal-slot-name">{slot.course_name}</div>
       <div className="cal-slot-meta">
         <span>{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</span>
-        {slot.room && <span>📍 {slot.room}</span>}
-        {slot.faculty_name && <span>👤 {slot.faculty_name}</span>}
+        {slot.room && <span>{slot.room}</span>}
+        {slot.faculty_name && <span>{slot.faculty_name}</span>}
       </div>
     </>
   );
 }
 
 /* ── Static (non-editable) calendar ─────────────── */
-function StaticSlot({ slot, color }) {
-  return (
-    <div className="cal-slot" style={calcSlotStyle(slot, color)}>
-      <SlotContent slot={slot} color={color} />
-    </div>
-  );
-}
-
-function StaticDayColumn({ day, slots }) {
-  const totalRows = (GRID_END - GRID_START) / 30;
-  return (
-    <div className="cal-day-col">
-      {Array.from({ length: totalRows }).map((_, i) => (
-        <div
-          key={i}
-          className={`cal-gridline ${i % 2 === 0 ? 'cal-gridline-hour' : 'cal-gridline-half'}`}
-          style={{ top: i * ROW_HEIGHT }}
-        />
-      ))}
-      {slots.map(slot => {
-        const color = getSlotColor(slot.course_id);
-        return <StaticSlot key={slot.id} slot={slot} color={color} />;
-      })}
-    </div>
-  );
-}
-
 function StaticCalendar({ slots }) {
   const grouped = DAYS.reduce((acc, day) => {
     acc[day] = slots.filter(s => s.day === day);
@@ -119,23 +92,56 @@ function StaticCalendar({ slots }) {
   const displayDays = activeDays.length > 0 ? activeDays : DAYS;
 
   return (
-    <div className="cal-wrapper">
-      <div className="cal-header-row">
-        <div className="cal-header-gutter" />
+    <div className="cal-wrapper cal-static">
+      <CalendarHeader displayDays={displayDays} />
+      <CalendarBody displayDays={displayDays} grouped={grouped} renderSlot={(slot, color) => (
+        <div key={slot.id} className="cal-slot" style={calcSlotStyle(slot, color)}>
+          <SlotContent slot={slot} color={color} />
+        </div>
+      )} />
+    </div>
+  );
+}
+
+/* ── Shared header & body ──────────────────────── */
+function CalendarHeader({ displayDays }) {
+  return (
+    <div className="cal-header-row">
+      <div className="cal-header-gutter" />
+      {displayDays.map(day => (
+        <div key={day} className="cal-header-day">
+          <span className="cal-day-short">{day}</span>
+          <span className="cal-day-full">{DAY_LABELS[day]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CalendarBody({ displayDays, grouped, children, renderSlot, gridRef, onDragOver, onDrop, onDragEnter, onDragLeave }) {
+  const totalRows = (GRID_END - GRID_START) / 30;
+  return (
+    <div className="cal-body" ref={gridRef}>
+      <TimeGutter />
+      <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${displayDays.length}, 1fr)` }}>
         {displayDays.map(day => (
-          <div key={day} className="cal-header-day">
-            <span className="cal-day-short">{day}</span>
-            <span className="cal-day-full">{DAY_LABELS[day]}</span>
+          <div
+            key={day}
+            className="cal-day-col"
+            onDragOver={onDragOver}
+            onDrop={onDrop ? e => onDrop(e, day) : undefined}
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+          >
+            {Array.from({ length: totalRows }).map((_, i) => (
+              <div key={i} className={`cal-gridline ${i % 2 === 0 ? 'cal-gridline-hour' : 'cal-gridline-half'}`} style={{ top: i * ROW_HEIGHT }} />
+            ))}
+            {renderSlot ? grouped[day].map(slot => {
+              const color = getSlotColor(slot.course_id);
+              return renderSlot(slot, color);
+            }) : children}
           </div>
         ))}
-      </div>
-      <div className="cal-body">
-        <TimeGutter />
-        <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${displayDays.length}, 1fr)` }}>
-          {displayDays.map(day => (
-            <StaticDayColumn key={day} day={day} slots={grouped[day]} />
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -144,50 +150,13 @@ function StaticCalendar({ slots }) {
 /* ── Editable (drag-and-drop) calendar ───── */
 function EditableCalendar({ slots, onSlotMove, toast }) {
   const dragRef = useRef(null);
+  const gridRef = useRef(null);
+  const dropLineRef = useRef(null);
+  const snapRowRef = useRef(-1);
+  const scrollIntRef = useRef(null);
+  const cursorRef = useRef({ x: 0, y: 0 });
 
-  function handleDragStart(e, slot) {
-    dragRef.current = slot;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(slot.id));
-    e.target.classList.add('cal-slot-dragging-source');
-  }
-
-  function handleDragEnd(e) {
-    dragRef.current = null;
-    e.target.classList.remove('cal-slot-dragging-source');
-  }
-
-  function handleDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  }
-
-  function handleDragEnter(e) {
-    e.currentTarget.classList.add('cal-day-col-over');
-  }
-
-  function handleDragLeave(e) {
-    e.currentTarget.classList.remove('cal-day-col-over');
-  }
-
-  function handleDrop(e, targetDay) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('cal-day-col-over');
-    const slot = dragRef.current;
-    if (!slot) return;
-    const colRect = e.currentTarget.getBoundingClientRect();
-    const y = e.clientY - colRect.top;
-    const snapSlot = Math.round(y / ROW_HEIGHT);
-    const newStartMin = snapSlot * 30 + GRID_START;
-    const duration = timeToMinutes(slot.end_time) - timeToMinutes(slot.start_time);
-    const newEndMin = newStartMin + duration;
-    if (newStartMin < GRID_START || newEndMin > GRID_END) {
-      if (toast) toast('Cannot move slot outside operating hours (08:00 – 20:00)', 'error');
-      return;
-    }
-    if (targetDay === slot.day && newStartMin === timeToMinutes(slot.start_time)) return;
-    onSlotMove(slot.id, { day: targetDay, start_time: minutesToStr(newStartMin), end_time: minutesToStr(newEndMin) });
-  }
+  const [dragActive, setDragActive] = useState(false);
 
   const grouped = DAYS.reduce((acc, day) => {
     acc[day] = slots.filter(s => s.day === day);
@@ -197,23 +166,112 @@ function EditableCalendar({ slots, onSlotMove, toast }) {
   const displayDays = activeDays.length > 0 ? activeDays : DAYS;
   const totalRows = (GRID_END - GRID_START) / 30;
 
+  useEffect(() => () => clearInterval(scrollIntRef.current), []);
+
+  function yToSnapRow(y) {
+    return Math.round(Math.max(0, Math.min(y, totalRows * ROW_HEIGHT)) / ROW_HEIGHT);
+  }
+
+  function updateDropLine(colEl, clientY) {
+    const rect = colEl.getBoundingClientRect();
+    const snap = yToSnapRow(clientY - rect.top + (gridRef.current?.scrollTop || 0));
+    snapRowRef.current = snap;
+    let line = dropLineRef.current;
+    if (!line) {
+      line = document.createElement('div');
+      line.className = 'cal-drop-line';
+      line.innerHTML = '<span class="cal-drop-time"></span>';
+      dropLineRef.current = line;
+    }
+    line.style.top = `${snap * ROW_HEIGHT}px`;
+    line.querySelector('.cal-drop-time').textContent = formatTime(minutesToStr(snap * 30 + GRID_START));
+    if (line.parentNode !== colEl) {
+      line.parentNode?.removeChild(line);
+      colEl.appendChild(line);
+    }
+  }
+
+  function removeDropLine() {
+    if (dropLineRef.current?.parentNode) dropLineRef.current.parentNode.removeChild(dropLineRef.current);
+  }
+
+  function handleDragStart(e, slot) {
+    dragRef.current = slot;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(slot.id));
+    setDragActive(true);
+  }
+
+  function handleDragEnd() {
+    dragRef.current = null;
+    setDragActive(false);
+    removeDropLine();
+    clearInterval(scrollIntRef.current);
+    scrollIntRef.current = null;
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    cursorRef.current = { x: e.clientX, y: e.clientY };
+    updateDropLine(e.currentTarget, e.clientY);
+
+    if (!scrollIntRef.current) {
+      scrollIntRef.current = setInterval(() => {
+        if (!gridRef.current) return;
+        const r = gridRef.current.getBoundingClientRect();
+        const { x, y } = cursorRef.current;
+        if (y < r.top + 40) gridRef.current.scrollTop = Math.max(0, gridRef.current.scrollTop - 10);
+        else if (y > r.bottom - 40) gridRef.current.scrollTop += 10;
+        if (x < r.left + 40) gridRef.current.scrollLeft = Math.max(0, gridRef.current.scrollLeft - 10);
+        else if (x > r.right - 40) gridRef.current.scrollLeft += 10;
+      }, 30);
+    }
+  }
+
+  function handleDragEnter(e) { e.currentTarget.classList.add('cal-day-col-over'); }
+  function handleDragLeave(e) { e.currentTarget.classList.remove('cal-day-col-over'); }
+
+  function handleDrop(e, targetDay) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('cal-day-col-over');
+    clearInterval(scrollIntRef.current);
+    scrollIntRef.current = null;
+
+    const slot = dragRef.current;
+    if (!slot) return;
+
+    const newStartMin = snapRowRef.current * 30 + GRID_START;
+    const duration = timeToMinutes(slot.end_time) - timeToMinutes(slot.start_time);
+    const newEndMin = newStartMin + duration;
+
+    if (newStartMin < GRID_START || newEndMin > GRID_END) {
+      if (toast) toast('Cannot move slot outside operating hours (08:00 – 20:00)', 'error');
+      return;
+    }
+    if (targetDay === slot.day && newStartMin === timeToMinutes(slot.start_time)) return;
+
+    removeDropLine();
+    onSlotMove(slot.id, {
+      day: targetDay,
+      start_time: minutesToStr(newStartMin),
+      end_time: minutesToStr(newEndMin),
+    });
+    setDragActive(false);
+    dragRef.current = null;
+  }
+
   return (
-    <div className="cal-wrapper">
-      <div className="cal-header-row">
-        <div className="cal-header-gutter" />
-        {displayDays.map(day => (
-          <div key={day} className="cal-header-day">
-            <span className="cal-day-short">{day}</span>
-            <span className="cal-day-full">{DAY_LABELS[day]}</span>
-          </div>
-        ))}
-      </div>
-      <div className="cal-body">
+    <div className={`cal-wrapper ${dragActive ? 'cal-drag-active' : ''}`}>
+      <CalendarHeader displayDays={displayDays} />
+      <div className="cal-body" ref={gridRef}>
         <TimeGutter />
         <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${displayDays.length}, 1fr)` }}>
           {displayDays.map(day => (
             <div
               key={day}
+              data-day={day}
               className="cal-day-col cal-day-col-droppable"
               onDragOver={handleDragOver}
               onDragEnter={handleDragEnter}
@@ -223,14 +281,18 @@ function EditableCalendar({ slots, onSlotMove, toast }) {
               {Array.from({ length: totalRows }).map((_, i) => (
                 <div key={i} className={`cal-gridline ${i % 2 === 0 ? 'cal-gridline-hour' : 'cal-gridline-half'}`} style={{ top: i * ROW_HEIGHT }} />
               ))}
-              {grouped[day].map(slot => {
-                const color = getSlotColor(slot.course_id);
-                return (
-                  <div key={slot.id} className="cal-slot cal-slot-draggable" draggable onDragStart={e => handleDragStart(e, slot)} onDragEnd={handleDragEnd} style={calcSlotStyle(slot, color)}>
-                    <SlotContent slot={slot} color={color} />
-                  </div>
-                );
-              })}
+              {grouped[day].map(slot => (
+                <div
+                  key={slot.id}
+                  className={`cal-slot cal-slot-draggable ${dragRef.current?.id === slot.id ? 'cal-slot-dragging-source' : ''}`}
+                  draggable
+                  onDragStart={e => handleDragStart(e, slot)}
+                  onDragEnd={handleDragEnd}
+                  style={calcSlotStyle(slot, getSlotColor(slot.course_id))}
+                >
+                  <SlotContent slot={slot} color={getSlotColor(slot.course_id)} />
+                </div>
+              ))}
             </div>
           ))}
         </div>
