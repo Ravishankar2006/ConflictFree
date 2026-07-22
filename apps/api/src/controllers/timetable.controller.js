@@ -1,159 +1,147 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
+import { toTimeStr, toTimeShort, timeToDate } from '../utils/time.js';
+import { detectConflicts } from '../utils/conflict-detector.js';
 
-// Create a new timetable slot with conflict detection
+const DAY_ORDER = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5 };
+
+function sortByDay(rows) {
+  return rows.sort((a, b) => DAY_ORDER[a.day] - DAY_ORDER[b.day] || toTimeStr(a.start_time).localeCompare(toTimeStr(b.start_time)));
+}
+
+function formatSlots(rows) {
+  return rows.map(r => ({
+    ...r,
+    start_time: toTimeStr(r.start_time),
+    end_time: toTimeStr(r.end_time),
+    course_name: r.course?.name,
+    course_code: r.course?.code,
+    faculty_name: r.faculty?.name
+  }));
+}
+
 export async function createSlot(req, res) {
   try {
     const { course_id, room, faculty_id, day, start_time, end_time } = req.body;
 
-    // Validate inputs
     if (!course_id || !room || !faculty_id || !day || !start_time || !end_time) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // Validate time range
     if (start_time >= end_time) {
       return res.status(400).json({ message: 'end_time must be after start_time' });
     }
 
-    // Check for conflicts (same day + overlapping time + same room OR faculty)
-    const [conflicts] = await pool.query(
-      `
-      SELECT * FROM timetable_slots
-      WHERE day = ?
-        AND (? < end_time AND ? > start_time)
-        AND (room = ? OR faculty_id = ?)
-      `,
-      [day, start_time, end_time, room, faculty_id]
-    );
+    const conflicts = await detectConflicts({
+      day, start_time, end_time, room, faculty_id
+    });
 
     if (conflicts.length > 0) {
-      // BLOCK the slot creation and return conflict details
       return res.status(409).json({
         message: 'Cannot create slot: Conflict detected',
         conflicts: conflicts.map(c => ({
           id: c.id,
           room: c.room,
           day: c.day,
-          time: `${c.start_time.slice(0, 5)} - ${c.end_time.slice(0, 5)}`,
+          time: `${toTimeShort(c.start_time)} - ${toTimeShort(c.end_time)}`,
           course_id: c.course_id
         }))
       });
     }
 
-    // No conflicts: safe insert
-    const [result] = await pool.query(
-      'INSERT INTO timetable_slots (course_id, room, faculty_id, day, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
-      [course_id, room, faculty_id, day, start_time, end_time]
-    );
+    const result = await prisma.timetableSlot.create({
+      data: {
+        course_id, room, faculty_id, day,
+        start_time: timeToDate(start_time),
+        end_time: timeToDate(end_time)
+      }
+    });
 
     res.status(201).json({
       message: 'Slot created successfully',
-      slotId: result.insertId
+      slotId: result.id
     });
   } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'A slot already exists with this course, faculty, day and start time' });
+    }
     console.error('Error in createSlot:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
 
-// Get timetable based on user role
 export async function getMyTimetable(req, res) {
   try {
     const userId = req.user.id;
     const role = req.user.role;
 
+    let rows;
+
     if (role === 'student') {
-      // Get timetable for enrolled courses
-      const [rows] = await pool.query(
-        `
-        SELECT ts.*, c.name as course_name, c.code as course_code, u.name as faculty_name
-        FROM timetable_slots ts
-        JOIN enrollments e ON e.course_id = ts.course_id
-        JOIN courses c ON c.id = ts.course_id
-        JOIN users u ON u.id = ts.faculty_id
-        WHERE e.student_id = ?
-        ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time
-        `,
-        [userId]
-      );
-      return res.json(rows);
+      rows = await prisma.timetableSlot.findMany({
+        where: {
+          course: { enrollments: { some: { student_id: userId } } }
+        },
+        include: {
+          course: { select: { name: true, code: true } },
+          faculty: { select: { name: true } }
+        }
+      });
+    } else if (role === 'faculty') {
+      rows = await prisma.timetableSlot.findMany({
+        where: { faculty_id: userId },
+        include: {
+          course: { select: { name: true, code: true } }
+        }
+      });
+    } else {
+      rows = await prisma.timetableSlot.findMany({
+        include: {
+          course: { select: { name: true, code: true } },
+          faculty: { select: { name: true } }
+        }
+      });
     }
 
-    if (role === 'faculty') {
-      // Get timetable for faculty's classes
-      const [rows] = await pool.query(
-        `
-        SELECT ts.*, c.name as course_name, c.code as course_code
-        FROM timetable_slots ts
-        JOIN courses c ON c.id = ts.course_id
-        WHERE ts.faculty_id = ?
-        ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time
-        `,
-        [userId]
-      );
-      return res.json(rows);
-    }
-
-    // Admin sees everything
-    const [rows] = await pool.query(
-      `
-      SELECT ts.*, c.name as course_name, c.code as course_code, u.name as faculty_name
-      FROM timetable_slots ts
-      JOIN courses c ON c.id = ts.course_id
-      JOIN users u ON u.id = ts.faculty_id
-      ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time
-      `
-    );
-    return res.json(rows);
+    res.json(sortByDay(formatSlots(rows)));
   } catch (error) {
     console.error('Error in getMyTimetable:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
 
-// Get all slots (admin only)
 export async function getAllSlots(req, res) {
   try {
-    const [rows] = await pool.query(
-      `
-      SELECT ts.*, c.name as course_name, c.code as course_code, u.name as faculty_name
-      FROM timetable_slots ts
-      JOIN courses c ON c.id = ts.course_id
-      JOIN users u ON u.id = ts.faculty_id
-      ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time
-      `
-    );
-    res.json(rows);
+    const rows = await prisma.timetableSlot.findMany({
+      include: {
+        course: { select: { name: true, code: true } },
+        faculty: { select: { name: true } }
+      }
+    });
+
+    res.json(sortByDay(formatSlots(rows)));
   } catch (error) {
     console.error('Error in getAllSlots:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
 
-// Delete a timetable slot
 export async function deleteSlot(req, res) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    // Check if slot exists
-    const [slots] = await pool.query('SELECT * FROM timetable_slots WHERE id = ?', [id]);
-    
-    if (slots.length === 0) {
+    const slot = await prisma.timetableSlot.findUnique({ where: { id: Number(id) } });
+
+    if (!slot) {
       return res.status(404).json({ message: 'Slot not found' });
     }
 
-    const slot = slots[0];
-
-    // Authorization: faculty can only delete their own slots, admin can delete any
     if (userRole === 'faculty' && slot.faculty_id !== userId) {
       return res.status(403).json({ message: 'You can only delete your own slots' });
     }
 
-    // Delete the slot
-    await pool.query('DELETE FROM timetable_slots WHERE id = ?', [id]);
-
+    await prisma.timetableSlot.delete({ where: { id: Number(id) } });
     res.json({ message: 'Slot deleted successfully' });
   } catch (error) {
     console.error('Error in deleteSlot:', error);
@@ -161,7 +149,6 @@ export async function deleteSlot(req, res) {
   }
 }
 
-// Update (reschedule) a timetable slot — admin only
 export async function updateSlot(req, res) {
   try {
     const { id } = req.params;
@@ -174,22 +161,26 @@ export async function updateSlot(req, res) {
       return res.status(400).json({ message: 'end_time must be after start_time' });
     }
 
-    const [existing] = await pool.query('SELECT * FROM timetable_slots WHERE id = ?', [id]);
-    if (existing.length === 0) {
+    const existing = await prisma.timetableSlot.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
       return res.status(404).json({ message: 'Slot not found' });
     }
 
-    // Check conflicts, excluding the slot being updated
-    const [conflicts] = await pool.query(
-      `
-      SELECT * FROM timetable_slots
-      WHERE id != ?
-        AND day = ?
-        AND (? < end_time AND ? > start_time)
-        AND (room = ? OR faculty_id = ?)
-      `,
-      [id, day, start_time, end_time, room, faculty_id]
-    );
+    const [conflicts, existingSlots] = await Promise.all([
+      detectConflicts({
+        day, start_time, end_time, room, faculty_id,
+        excludeId: Number(id)
+      }),
+      prisma.timetableSlot.findMany({
+        where: {
+          id: { not: Number(id) },
+          course_id, faculty_id, day
+        },
+        select: { id: true, start_time: true }
+      })
+    ]);
+
+    const duplicateKey = existingSlots.find(s => toTimeStr(s.start_time) === start_time);
 
     if (conflicts.length > 0) {
       return res.status(409).json({
@@ -198,30 +189,42 @@ export async function updateSlot(req, res) {
           id: c.id,
           room: c.room,
           day: c.day,
-          time: `${c.start_time.slice(0, 5)} - ${c.end_time.slice(0, 5)}`,
+          time: `${toTimeShort(c.start_time)} - ${toTimeShort(c.end_time)}`,
           course_id: c.course_id
         }))
       });
     }
 
-    await pool.query(
-      'UPDATE timetable_slots SET course_id=?, room=?, faculty_id=?, day=?, start_time=?, end_time=? WHERE id=?',
-      [course_id, room, faculty_id, day, start_time, end_time, id]
-    );
+    if (duplicateKey) {
+      return res.status(409).json({
+        message: 'Another slot already has this course, faculty, day and start time'
+      });
+    }
+
+    await prisma.timetableSlot.update({
+      where: { id: Number(id) },
+      data: {
+        course_id, room, faculty_id, day,
+        start_time: timeToDate(start_time),
+        end_time: timeToDate(end_time)
+      }
+    });
 
     res.json({ message: 'Slot updated successfully' });
   } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Another slot already has this course, faculty, day and start time' });
+    }
     console.error('Error in updateSlot:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 }
 
-// ─── iCal Export ────────────────────────────────────────────────
 const DAY_OFFSET = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5 };
 
 function getMonday(d) {
   const date = new Date(d);
-  const day = date.getDay(); // 0=Sun, 1=Mon …
+  const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + diff);
   date.setHours(0, 0, 0, 0);
@@ -230,7 +233,7 @@ function getMonday(d) {
 
 function formatIcalDate(date, time) {
   const d = new Date(date);
-  const [h, m] = time.split(':');
+  const [h, m] = typeof time === 'string' ? time.split(':') : [time.getHours(), time.getMinutes()];
   d.setHours(parseInt(h), parseInt(m), 0, 0);
   return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
@@ -241,34 +244,31 @@ export async function exportIcal(req, res) {
     const role = req.user.role;
 
     let rows;
+
     if (role === 'student') {
-      [rows] = await pool.query(
-        `SELECT ts.*, c.name AS course_name, c.code AS course_code, u.name AS faculty_name
-         FROM timetable_slots ts
-         JOIN enrollments e ON e.course_id = ts.course_id
-         JOIN courses c ON c.id = ts.course_id
-         JOIN users u ON u.id = ts.faculty_id
-         WHERE e.student_id = ?
-         ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time`,
-        [userId]
-      );
+      rows = await prisma.timetableSlot.findMany({
+        where: {
+          course: { enrollments: { some: { student_id: userId } } }
+        },
+        include: {
+          course: { select: { name: true, code: true } },
+          faculty: { select: { name: true } }
+        }
+      });
     } else if (role === 'faculty') {
-      [rows] = await pool.query(
-        `SELECT ts.*, c.name AS course_name, c.code AS course_code
-         FROM timetable_slots ts
-         JOIN courses c ON c.id = ts.course_id
-         WHERE ts.faculty_id = ?
-         ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time`,
-        [userId]
-      );
+      rows = await prisma.timetableSlot.findMany({
+        where: { faculty_id: userId },
+        include: {
+          course: { select: { name: true, code: true } }
+        }
+      });
     } else {
-      [rows] = await pool.query(
-        `SELECT ts.*, c.name AS course_name, c.code AS course_code, u.name AS faculty_name
-         FROM timetable_slots ts
-         JOIN courses c ON c.id = ts.course_id
-         JOIN users u ON u.id = ts.faculty_id
-         ORDER BY FIELD(ts.day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'), ts.start_time`
-      );
+      rows = await prisma.timetableSlot.findMany({
+        include: {
+          course: { select: { name: true, code: true } },
+          faculty: { select: { name: true } }
+        }
+      });
     }
 
     const monday = getMonday(new Date());
@@ -283,10 +283,10 @@ export async function exportIcal(req, res) {
     for (const slot of rows) {
       const eventDate = new Date(monday);
       eventDate.setDate(monday.getDate() + DAY_OFFSET[slot.day]);
-      const dtStart = formatIcalDate(eventDate, slot.start_time.slice(0, 5));
-      const dtEnd   = formatIcalDate(eventDate, slot.end_time.slice(0, 5));
-      const summary = `${slot.course_code} – ${slot.course_name}`;
-      const desc = `Room: ${slot.room}${slot.faculty_name ? `\\nFaculty: ${slot.faculty_name}` : ''}`;
+      const dtStart = formatIcalDate(eventDate, slot.start_time);
+      const dtEnd   = formatIcalDate(eventDate, slot.end_time);
+      const summary = `${slot.course.code} – ${slot.course.name}`;
+      const desc = `Room: ${slot.room}${slot.faculty?.name ? `\\nFaculty: ${slot.faculty.name}` : ''}`;
 
       lines.push('BEGIN:VEVENT');
       lines.push(`DTSTART:${dtStart}`);

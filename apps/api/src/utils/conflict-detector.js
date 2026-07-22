@@ -1,47 +1,63 @@
-export async function detectConflicts(pool, { day, start_time, end_time, room, faculty_id, excludeId }) {
-  let query = `
-    SELECT * FROM timetable_slots
-    WHERE day = ?
-      AND (? < end_time AND ? > start_time)
-      AND (room = ? OR faculty_id = ?)
-  `;
-  const params = [day, start_time, end_time, room, faculty_id];
+import prisma from '../config/prisma.js';
+import { toTimeStr } from './time.js';
 
-  if (excludeId) {
-    query += ' AND id != ?';
-    params.push(excludeId);
-  }
+const timeToMin = (t) => {
+  const [h, m] = (typeof t === 'string' ? t : toTimeStr(t)).split(':').map(Number);
+  return h * 60 + m;
+};
 
-  const [rows] = await pool.query(query, params);
-  return rows;
+export async function detectConflicts({ day, start_time, end_time, room, faculty_id, excludeId }) {
+  const slots = await prisma.timetableSlot.findMany({
+    where: {
+      day,
+      OR: [{ room }, { faculty_id }]
+    }
+  });
+
+  const startMin = timeToMin(start_time);
+  const endMin = timeToMin(end_time);
+
+  return slots.filter(s => {
+    if (excludeId && s.id === excludeId) return false;
+    const sStart = timeToMin(s.start_time);
+    const sEnd = timeToMin(s.end_time);
+    return startMin < sEnd && endMin > sStart;
+  });
 }
 
-export async function detectStudentConflicts(pool, { day, start_time, end_time, course_id, excludeSlotId }) {
-  const [enrolled] = await pool.query(
-    'SELECT student_id FROM enrollments WHERE course_id = ?',
-    [course_id]
-  );
+export async function detectStudentConflicts({ day, start_time, end_time, course_id, excludeSlotId }) {
+  const enrolled = await prisma.enrollment.findMany({
+    where: { course_id },
+    select: { student_id: true }
+  });
 
   if (enrolled.length === 0) return [];
 
   const studentIds = enrolled.map(e => e.student_id);
 
-  let query = `
-    SELECT DISTINCT ts.*, c.name AS course_name, c.code AS course_code
-    FROM timetable_slots ts
-    JOIN enrollments e ON e.course_id = ts.course_id
-    JOIN courses c ON c.id = ts.course_id
-    WHERE e.student_id IN (?)
-      AND ts.day = ?
-      AND (? < ts.end_time AND ? > ts.start_time)
-  `;
-  const params = [studentIds, day, start_time, end_time];
+  const slots = await prisma.timetableSlot.findMany({
+    where: {
+      day,
+      course: {
+        enrollments: { some: { student_id: { in: studentIds } } }
+      }
+    },
+    include: { course: { select: { name: true, code: true } } }
+  });
 
-  if (excludeSlotId) {
-    query += ' AND ts.id != ?';
-    params.push(excludeSlotId);
-  }
+  const startMin = timeToMin(start_time);
+  const endMin = timeToMin(end_time);
 
-  const [rows] = await pool.query(query, params);
-  return rows;
+  return slots
+    .filter(s => {
+      if (excludeSlotId && s.id === excludeSlotId) return false;
+      const sStart = timeToMin(s.start_time);
+      const sEnd = timeToMin(s.end_time);
+      return startMin < sEnd && endMin > sStart;
+    })
+    .map(r => ({
+      ...r,
+      course_name: r.course.name,
+      course_code: r.course.code
+    }));
 }

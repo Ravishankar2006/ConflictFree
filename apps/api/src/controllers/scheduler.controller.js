@@ -1,15 +1,18 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
 import { generateTimetable } from '../services/scheduler.service.js';
 import { detectConflicts, detectStudentConflicts } from '../utils/conflict-detector.js';
+import { toTimeStr, timeToDate } from '../utils/time.js';
 
 export async function generate(req, res) {
   try {
-    const [courses] = await pool.query('SELECT id, name, code FROM courses');
-    const [faculty] = await pool.query("SELECT id, name, email FROM users WHERE role = 'faculty'");
-    const [rooms] = await pool.query('SELECT id, name, capacity FROM rooms');
-    const [enrollments] = await pool.query('SELECT student_id, course_id FROM enrollments');
-    const [availability] = await pool.query('SELECT * FROM faculty_availability');
-    const [courseFaculty] = await pool.query('SELECT course_id, faculty_id FROM course_faculty');
+    const [courses, faculty, rooms, enrollments, availability, courseFaculty] = await Promise.all([
+      prisma.course.findMany({ select: { id: true, name: true, code: true } }),
+      prisma.user.findMany({ where: { role: 'faculty' }, select: { id: true, name: true, email: true } }),
+      prisma.room.findMany({ select: { id: true, name: true, capacity: true } }),
+      prisma.enrollment.findMany({ select: { student_id: true, course_id: true } }),
+      prisma.facultyAvailability.findMany(),
+      prisma.courseFaculty.findMany({ select: { course_id: true, faculty_id: true } })
+    ]);
 
     if (rooms.length === 0) {
       return res.status(400).json({ message: 'No rooms defined. Add rooms before generating.' });
@@ -19,12 +22,18 @@ export async function generate(req, res) {
       return res.status(400).json({ message: 'No courses defined. Add courses before generating.' });
     }
 
+    const normalizedAvailability = availability.map(a => ({
+      ...a,
+      start_time: toTimeStr(a.start_time),
+      end_time: toTimeStr(a.end_time)
+    }));
+
     const result = generateTimetable({
       courses,
       faculty,
       rooms,
       enrollments,
-      availability,
+      availability: normalizedAvailability,
       courseFaculty,
       params: req.body
     });
@@ -45,7 +54,7 @@ export async function apply(req, res) {
     }
 
     if (clearExisting) {
-      await pool.query('DELETE FROM timetable_slots');
+      await prisma.timetableSlot.deleteMany();
     }
 
     const errors = [];
@@ -64,7 +73,7 @@ export async function apply(req, res) {
         continue;
       }
 
-      const roomConflicts = await detectConflicts(pool, {
+      const roomConflicts = await detectConflicts({
         day: s.day,
         start_time: s.start_time,
         end_time: s.end_time,
@@ -81,7 +90,7 @@ export async function apply(req, res) {
         continue;
       }
 
-      const studentConflicts = await detectStudentConflicts(pool, {
+      const studentConflicts = await detectStudentConflicts({
         day: s.day,
         start_time: s.start_time,
         end_time: s.end_time,
@@ -97,10 +106,16 @@ export async function apply(req, res) {
         continue;
       }
 
-      await pool.query(
-        'INSERT INTO timetable_slots (course_id, faculty_id, room, day, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
-        [s.course_id, s.faculty_id, s.room, s.day, s.start_time, s.end_time]
-      );
+      await prisma.timetableSlot.create({
+        data: {
+          course_id: s.course_id,
+          faculty_id: s.faculty_id,
+          room: s.room,
+          day: s.day,
+          start_time: timeToDate(s.start_time),
+          end_time: timeToDate(s.end_time)
+        }
+      });
 
       inserted.push(s);
     }

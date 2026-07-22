@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                   String                @db.VarChar(100)
+  email                  String                @unique(map: "email") @db.VarChar(150)
+  password_hash          String                @db.VarChar(255)
+  role                   Role
+  created_at             DateTime?             @default(now()) @db.Timestamp(0)
+  course_faculty         CourseFaculty[]
+  enrollments            Enrollment[]
+  faculty_availabilities FacultyAvailability[]
+  timetable_slots        TimetableSlot[]
+
+  @@map("users")
+}
+
+model Course {
+  id              Int             @id @default(autoincrement()) @db.UnsignedInt
+  name            String          @db.VarChar(150)
+  code            String          @unique(map: "code") @db.VarChar(20)
+  created_at      DateTime?       @default(now()) @db.Timestamp(0)
+  course_faculty  CourseFaculty[]
+  enrollments     Enrollment[]
+  timetable_slots TimetableSlot[]
+
+  @@map("courses")
+}
+
+model TimetableSlot {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  course_id  Int       @db.UnsignedInt
+  faculty_id Int       @db.UnsignedInt
+  room       String    @db.VarChar(50)
+  day        Day
+  start_time DateTime  @db.Time(0)
+  end_time   DateTime  @db.Time(0)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  course     Course    @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "timetable_slots_ibfk_1")
+  faculty    User      @relation(fields: [faculty_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "timetable_slots_ibfk_2")
+
+  @@unique([course_id, faculty_id, day, start_time], name: "uq_slot", map: "uq_slot")
+  @@index([faculty_id], map: "faculty_id")
+  @@index([day, start_time], map: "idx_day_time")
+  @@index([room], map: "idx_room")
+  @@map("timetable_slots")
+}
+
+model Enrollment {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  student_id  Int       @db.UnsignedInt
+  course_id   Int       @db.UnsignedInt
+  enrolled_at DateTime? @default(now()) @db.Timestamp(0)
+  student     User      @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "enrollments_ibfk_1")
+  course      Course    @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "enrollments_ibfk_2")
+
+  @@unique([student_id, course_id], name: "uq_enrollment", map: "uq_enrollment")
+  @@index([course_id], map: "course_id")
+  @@map("enrollments")
+}
+
+model Room {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  name       String    @unique(map: "name") @db.VarChar(50)
+  capacity   Int       @default(30) @db.UnsignedInt
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+
+  @@map("rooms")
+}
+
+model CourseFaculty {
+  id         Int    @id @default(autoincrement()) @db.UnsignedInt
+  course_id  Int    @db.UnsignedInt
+  faculty_id Int    @db.UnsignedInt
+  course     Course @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "course_faculty_ibfk_1")
+  faculty    User   @relation(fields: [faculty_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "course_faculty_ibfk_2")
+
+  @@unique([course_id, faculty_id], name: "uq_course_faculty", map: "uq_course_faculty")
+  @@index([faculty_id], map: "faculty_id")
+  @@map("course_faculty")
+}
+
+model FacultyAvailability {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  faculty_id Int      @db.UnsignedInt
+  day        Day
+  start_time DateTime @db.Time(0)
+  end_time   DateTime @db.Time(0)
+  faculty    User     @relation(fields: [faculty_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "faculty_availability_ibfk_1")
+
+  @@unique([faculty_id, day], name: "uq_faculty_day", map: "uq_faculty_day")
+  @@map("faculty_availability")
+}
+
+enum Role {
+  admin
+  faculty
+  student
+}
+
+enum Day {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+}

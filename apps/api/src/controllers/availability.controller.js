@@ -1,4 +1,7 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
+import { toTimeStr, timeToDate } from '../utils/time.js';
+
+const DAY_ORDER = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5 };
 
 export async function listAvailability(req, res) {
   try {
@@ -6,17 +9,22 @@ export async function listAvailability(req, res) {
 
     let rows;
     if (facultyId) {
-      [rows] = await pool.query(
-        'SELECT * FROM faculty_availability WHERE faculty_id = ? ORDER BY FIELD(day, \'MON\', \'TUE\', \'WED\', \'THU\', \'FRI\', \'SAT\')',
-        [facultyId]
-      );
+      rows = await prisma.facultyAvailability.findMany({
+        where: { faculty_id: Number(facultyId) }
+      });
     } else {
-      [rows] = await pool.query(
-        'SELECT fa.*, u.name AS faculty_name FROM faculty_availability fa JOIN users u ON u.id = fa.faculty_id ORDER BY fa.faculty_id, FIELD(fa.day, \'MON\', \'TUE\', \'WED\', \'THU\', \'FRI\', \'SAT\')'
-      );
+      rows = await prisma.facultyAvailability.findMany({
+        include: { faculty: { select: { name: true } } }
+      });
+      rows = rows.map(r => ({
+        ...r,
+        faculty_name: r.faculty.name
+      }));
     }
 
-    res.json(rows);
+    rows.sort((a, b) => a.faculty_id - b.faculty_id || DAY_ORDER[a.day] - DAY_ORDER[b.day]);
+    const result = rows.map(r => ({ ...r, start_time: toTimeStr(r.start_time), end_time: toTimeStr(r.end_time) }));
+    res.json(result);
   } catch (error) {
     console.error('Error in listAvailability:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -35,12 +43,11 @@ export async function setAvailability(req, res) {
       return res.status(400).json({ message: 'end_time must be after start_time' });
     }
 
-    await pool.query(
-      `INSERT INTO faculty_availability (faculty_id, day, start_time, end_time)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE start_time = VALUES(start_time), end_time = VALUES(end_time)`,
-      [faculty_id, day, start_time, end_time]
-    );
+    await prisma.facultyAvailability.upsert({
+      where: { faculty_id_day: { faculty_id, day } },
+      update: { start_time: timeToDate(start_time), end_time: timeToDate(end_time) },
+      create: { faculty_id, day, start_time: timeToDate(start_time), end_time: timeToDate(end_time) }
+    });
 
     res.json({ message: 'Availability set successfully' });
   } catch (error) {
@@ -49,52 +56,44 @@ export async function setAvailability(req, res) {
   }
 }
 
-// GET /api/availability/me — faculty views their own availability
 export async function myAvailability(req, res) {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM faculty_availability WHERE faculty_id = ? ORDER BY FIELD(day, \'MON\', \'TUE\', \'WED\', \'THU\', \'FRI\', \'SAT\')',
-      [req.user.id]
-    );
-    res.json(rows);
+    const rows = await prisma.facultyAvailability.findMany({
+      where: { faculty_id: req.user.id }
+    });
+    rows.sort((a, b) => DAY_ORDER[a.day] - DAY_ORDER[b.day]);
+    const result = rows.map(r => ({ ...r, start_time: toTimeStr(r.start_time), end_time: toTimeStr(r.end_time) }));
+    res.json(result);
   } catch (error) {
     console.error('Error in myAvailability:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
 
-// PUT /api/availability/me — faculty bulk-updates their own weekly availability
 export async function updateMyAvailability(req, res) {
   try {
-    const { availability } = req.body; // [{ day, start_time, end_time }, ...]
+    const { availability } = req.body;
     const facultyId = req.user.id;
 
     if (!Array.isArray(availability)) {
       return res.status(400).json({ message: 'availability must be an array of { day, start_time, end_time }' });
     }
 
-    // Delete all existing records for this faculty, then insert new ones
-    await pool.query('DELETE FROM faculty_availability WHERE faculty_id = ?', [facultyId]);
+    await prisma.facultyAvailability.deleteMany({ where: { faculty_id: facultyId } });
 
     if (availability.length === 0) {
       return res.json({ message: 'All availability cleared' });
     }
 
-    const VALUES = availability.map(({ day, start_time, end_time }) => {
+    const entries = availability.map(({ day, start_time, end_time }) => {
       if (!day || !start_time || !end_time) throw new Error('Each entry needs day, start_time, end_time');
       if (start_time >= end_time) throw new Error(`end_time must be after start_time for ${day}`);
-      return { facultyId, day, start_time, end_time };
+      return { faculty_id: facultyId, day, start_time: timeToDate(start_time), end_time: timeToDate(end_time) };
     });
 
-    const placeholders = VALUES.map(() => '(?, ?, ?, ?)').join(', ');
-    const flatParams = VALUES.flatMap(v => [v.facultyId, v.day, v.start_time, v.end_time]);
+    await prisma.facultyAvailability.createMany({ data: entries });
 
-    await pool.query(
-      `INSERT INTO faculty_availability (faculty_id, day, start_time, end_time) VALUES ${placeholders}`,
-      flatParams
-    );
-
-    res.json({ message: 'Availability updated successfully', count: VALUES.length });
+    res.json({ message: 'Availability updated successfully', count: entries.length });
   } catch (error) {
     console.error('Error in updateMyAvailability:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -105,12 +104,12 @@ export async function deleteAvailability(req, res) {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT id FROM faculty_availability WHERE id = ?', [id]);
-    if (rows.length === 0) {
+    const existing = await prisma.facultyAvailability.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
       return res.status(404).json({ message: 'Availability record not found' });
     }
 
-    await pool.query('DELETE FROM faculty_availability WHERE id = ?', [id]);
+    await prisma.facultyAvailability.delete({ where: { id: Number(id) } });
     res.json({ message: 'Availability deleted successfully' });
   } catch (error) {
     console.error('Error in deleteAvailability:', error);

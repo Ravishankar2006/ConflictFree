@@ -1,8 +1,8 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
 
 export async function listRooms(req, res) {
   try {
-    const [rows] = await pool.query('SELECT * FROM rooms ORDER BY name');
+    const rows = await prisma.room.findMany({ orderBy: { name: 'asc' } });
     res.json(rows);
   } catch (error) {
     console.error('Error in listRooms:', error);
@@ -18,17 +18,16 @@ export async function createRoom(req, res) {
       return res.status(400).json({ message: 'Room name is required' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO rooms (name, capacity) VALUES (?, ?)',
-      [name.trim(), capacity || 30]
-    );
+    const result = await prisma.room.create({
+      data: { name: name.trim(), capacity: capacity || 30 }
+    });
 
     res.status(201).json({
       message: 'Room created successfully',
-      roomId: result.insertId
+      roomId: result.id
     });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'P2002') {
       return res.status(400).json({ message: 'Room already exists' });
     }
     console.error('Error in createRoom:', error);
@@ -40,12 +39,12 @@ export async function deleteRoom(req, res) {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT id FROM rooms WHERE id = ?', [id]);
-    if (rows.length === 0) {
+    const existing = await prisma.room.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    await pool.query('DELETE FROM rooms WHERE id = ?', [id]);
+    await prisma.room.delete({ where: { id: Number(id) } });
     res.json({ message: 'Room deleted successfully' });
   } catch (error) {
     console.error('Error in deleteRoom:', error);

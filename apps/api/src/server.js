@@ -11,32 +11,28 @@ import coursesRoutes from './routes/courses.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
 import roomsRoutes from './routes/rooms.routes.js';
 import schedulerRoutes from './routes/scheduler.routes.js';
-import { testConnection } from './config/db.js';
 import timetableRoutes from './routes/timetable.routes.js';
 import process from 'process';
+import prisma from './config/prisma.js';
 
 dotenv.config();
 
 const app = express();
 
-// CORS — allow only configured origin (defaults to all in dev if not set)
 const allowedOrigin = process.env.CORS_ORIGIN || '*';
 app.use(cors({ origin: allowedOrigin }));
 
-// Body parsing (CRITICAL ORDER: before routes)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting on auth endpoints
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 20,
   message: { message: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Routes
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/timetable', timetableRoutes);
@@ -54,7 +50,7 @@ app.get('/api/ping', (req, res) => {
 
 app.get('/api/db-test', async (req, res) => {
   try {
-    await testConnection();
+    await prisma.$queryRaw`SELECT 1`;
     res.json({ message: 'DB connection OK' });
   } catch (err) {
     console.error(err);
@@ -66,8 +62,9 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`✅ API running on http://localhost:${PORT}`);
   try {
-    await testConnection();
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ Prisma DB connection OK');
   } catch (err) {
-    console.error('❌ DB test on startup failed:', err.message);
+    console.error('❌ DB connection failed:', err.message);
   }
 });

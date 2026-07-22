@@ -1,9 +1,11 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
 
-// GET /api/courses — list all courses
 export async function listCourses(req, res) {
   try {
-    const [rows] = await pool.query('SELECT id, name, code FROM courses ORDER BY code');
+    const rows = await prisma.course.findMany({
+      select: { id: true, name: true, code: true },
+      orderBy: { code: 'asc' }
+    });
     res.json(rows);
   } catch (error) {
     console.error('Error in listCourses:', error);
@@ -11,7 +13,6 @@ export async function listCourses(req, res) {
   }
 }
 
-// POST /api/courses — create a new course (admin only)
 export async function createCourse(req, res) {
   try {
     const { name, code } = req.body;
@@ -20,17 +21,16 @@ export async function createCourse(req, res) {
       return res.status(400).json({ message: 'Course name and code are required' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO courses (name, code) VALUES (?, ?)',
-      [name.trim(), code.trim().toUpperCase()]
-    );
+    const result = await prisma.course.create({
+      data: { name: name.trim(), code: code.trim().toUpperCase() }
+    });
 
     res.status(201).json({
       message: 'Course created successfully',
-      courseId: result.insertId
+      courseId: result.id
     });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'P2002') {
       return res.status(400).json({ message: 'Course code already exists' });
     }
     console.error('Error in createCourse:', error);
@@ -38,17 +38,16 @@ export async function createCourse(req, res) {
   }
 }
 
-// DELETE /api/courses/:id — remove a course (admin only)
 export async function deleteCourse(req, res) {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT id FROM courses WHERE id = ?', [id]);
-    if (rows.length === 0) {
+    const existing = await prisma.course.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    await pool.query('DELETE FROM courses WHERE id = ?', [id]);
+    await prisma.course.delete({ where: { id: Number(id) } });
     res.json({ message: 'Course deleted successfully' });
   } catch (error) {
     console.error('Error in deleteCourse:', error);

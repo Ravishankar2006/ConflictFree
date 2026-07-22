@@ -1,19 +1,18 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
 
 export async function getCourseFaculty(req, res) {
   try {
     const { courseId } = req.params;
 
-    const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email
-       FROM course_faculty cf
-       JOIN users u ON u.id = cf.faculty_id
-       WHERE cf.course_id = ?
-       ORDER BY u.name`,
-      [courseId]
-    );
+    const rows = await prisma.courseFaculty.findMany({
+      where: { course_id: Number(courseId) },
+      include: { faculty: { select: { id: true, name: true, email: true } } }
+    });
 
-    res.json(rows);
+    const result = rows.map(r => r.faculty);
+    result.sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json(result);
   } catch (error) {
     console.error('Error in getCourseFaculty:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -22,14 +21,24 @@ export async function getCourseFaculty(req, res) {
 
 export async function getAllAssignments(req, res) {
   try {
-    const [rows] = await pool.query(
-      `SELECT cf.course_id, cf.faculty_id, c.code AS course_code, c.name AS course_name, u.name AS faculty_name
-       FROM course_faculty cf
-       JOIN courses c ON c.id = cf.course_id
-       JOIN users u ON u.id = cf.faculty_id
-       ORDER BY c.code, u.name`
-    );
-    res.json(rows);
+    const rows = await prisma.courseFaculty.findMany({
+      include: {
+        course: { select: { code: true, name: true } },
+        faculty: { select: { name: true } }
+      }
+    });
+
+    const result = rows.map(r => ({
+      course_id: r.course_id,
+      faculty_id: r.faculty_id,
+      course_code: r.course.code,
+      course_name: r.course.name,
+      faculty_name: r.faculty.name
+    }));
+
+    result.sort((a, b) => a.course_code.localeCompare(b.course_code) || a.faculty_name.localeCompare(b.faculty_name));
+
+    res.json(result);
   } catch (error) {
     console.error('Error in getAllAssignments:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -45,20 +54,23 @@ export async function assignFaculty(req, res) {
       return res.status(400).json({ message: 'faculty_id is required' });
     }
 
-    const [faculty] = await pool.query("SELECT id FROM users WHERE id = ? AND role = 'faculty'", [faculty_id]);
-    if (faculty.length === 0) {
+    const faculty = await prisma.user.findUnique({ where: { id: faculty_id } });
+    if (!faculty || faculty.role !== 'faculty') {
       return res.status(404).json({ message: 'Faculty not found' });
     }
 
-    const [course] = await pool.query('SELECT id FROM courses WHERE id = ?', [courseId]);
-    if (course.length === 0) {
+    const course = await prisma.course.findUnique({ where: { id: Number(courseId) } });
+    if (!course) {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    await pool.query(
-      'INSERT IGNORE INTO course_faculty (course_id, faculty_id) VALUES (?, ?)',
-      [courseId, faculty_id]
-    );
+    try {
+      await prisma.courseFaculty.create({
+        data: { course_id: Number(courseId), faculty_id }
+      });
+    } catch (e) {
+      if (e.code !== 'P2002') throw e;
+    }
 
     res.json({ message: 'Faculty assigned to course successfully' });
   } catch (error) {
@@ -71,10 +83,9 @@ export async function removeFaculty(req, res) {
   try {
     const { courseId, facultyId } = req.params;
 
-    await pool.query(
-      'DELETE FROM course_faculty WHERE course_id = ? AND faculty_id = ?',
-      [courseId, facultyId]
-    );
+    await prisma.courseFaculty.deleteMany({
+      where: { course_id: Number(courseId), faculty_id: Number(facultyId) }
+    });
 
     res.json({ message: 'Faculty removed from course' });
   } catch (error) {

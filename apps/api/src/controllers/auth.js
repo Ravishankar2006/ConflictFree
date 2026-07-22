@@ -1,9 +1,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import process from 'process';
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
 
-// POST /api/auth/users — admin creates a user with any role
 export async function createUser(req, res) {
   try {
     const { name, email, password, role } = req.body;
@@ -24,17 +23,16 @@ export async function createUser(req, res) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await pool.query(
-      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role]
-    );
+    const result = await prisma.user.create({
+      data: { name, email, password_hash: hashedPassword, role }
+    });
 
     res.status(201).json({
       message: 'User created successfully',
-      userId: result.insertId
+      userId: result.id
     });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'P2002') {
       return res.status(400).json({ message: 'Email already exists' });
     }
     console.error(error);
@@ -46,7 +44,6 @@ export async function register(req, res) {
   try {
     const { name, email, password, role } = req.body;
 
-    // Input validation
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'All fields (name, email, password, role) are required' });
     }
@@ -63,17 +60,16 @@ export async function register(req, res) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await pool.query(
-      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role]
-    );
+    const result = await prisma.user.create({
+      data: { name, email, password_hash: hashedPassword, role }
+    });
 
-    res.status(201).json({ 
-      message: 'User registered successfully', 
-      userId: result.insertId 
+    res.status(201).json({
+      message: 'User registered successfully',
+      userId: result.id
     });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'P2002') {
       return res.status(400).json({ message: 'Email already exists' });
     }
     console.error(error);
@@ -89,8 +85,7 @@ export async function login(req, res) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    const user = rows[0];
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -122,26 +117,25 @@ export async function login(req, res) {
   }
 }
 
-// GET /api/users?role=faculty|student|admin
 export async function listUsers(req, res) {
   try {
     const { role } = req.query;
     const allowedRoles = ['student', 'faculty', 'admin'];
 
-    let query = 'SELECT id, name, email, role FROM users';
-    const params = [];
-
+    const where = {};
     if (role) {
       if (!allowedRoles.includes(role)) {
         return res.status(400).json({ message: `Invalid role filter. Use one of: ${allowedRoles.join(', ')}` });
       }
-      query += ' WHERE role = ?';
-      params.push(role);
+      where.role = role;
     }
 
-    query += ' ORDER BY name';
+    const rows = await prisma.user.findMany({
+      where,
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: { name: 'asc' }
+    });
 
-    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error) {
     console.error('Error in listUsers:', error);
@@ -149,17 +143,16 @@ export async function listUsers(req, res) {
   }
 }
 
-// DELETE /api/auth/users/:id — admin deletes a user
 export async function deleteUser(req, res) {
   try {
     const { id } = req.params;
 
-    const [existing] = await pool.query('SELECT id FROM users WHERE id = ?', [id]);
-    if (!existing.length) {
+    const existing = await prisma.user.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    await prisma.user.delete({ where: { id: Number(id) } });
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Error in deleteUser:', error);

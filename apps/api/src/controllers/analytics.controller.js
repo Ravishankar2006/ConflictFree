@@ -1,26 +1,39 @@
-import pool from '../config/db.js';
+import prisma from '../config/prisma.js';
+
+const toTimeStr = (d) => typeof d === 'string' ? d : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+const toTimeShort = (d) => toTimeStr(d).slice(0, 5);
+
+function diffHours(start, end) {
+  const getM = (d) => {
+    if (typeof d === 'string') {
+      const [h, m] = d.split(':').map(Number);
+      return h * 60 + m;
+    }
+    return d.getHours() * 60 + d.getMinutes();
+  };
+  return (getM(end) - getM(start)) / 60;
+}
 
 export async function getOverview(req, res) {
   try {
-    const [[{ totalSlots }]]    = await pool.query('SELECT COUNT(*) AS totalSlots FROM timetable_slots');
-    const [[{ totalCourses }]]  = await pool.query('SELECT COUNT(*) AS totalCourses FROM courses');
-    const [[{ totalFaculty }]]  = await pool.query(`SELECT COUNT(*) AS totalFaculty FROM users WHERE role='faculty'`);
-    const [[{ totalRooms }]]    = await pool.query('SELECT COUNT(*) AS totalRooms FROM rooms');
+    const [totalSlots, totalCourses, totalFaculty, totalRooms, allSlots] = await Promise.all([
+      prisma.timetableSlot.count(),
+      prisma.course.count(),
+      prisma.user.count({ where: { role: 'faculty' } }),
+      prisma.room.count(),
+      prisma.timetableSlot.findMany({ select: { start_time: true, end_time: true } })
+    ]);
 
-    // Room utilization: total booked hours / (total rooms * available hours per week)
-    const availableHoursPerWeek = 12 * 5; // 08:00-20:00, Mon-Fri
-    const [bookedHoursRaw] = await pool.query(
-      "SELECT COALESCE(SUM(TIME_TO_SEC(TIMEDIFF(end_time, start_time)) / 3600), 0) AS total FROM timetable_slots"
-    );
-    const totalBookedHours = Number(bookedHoursRaw[0].total);
+    const availableHoursPerWeek = 12 * 5;
+    const totalBookedHours = allSlots.reduce((sum, s) => sum + diffHours(s.start_time, s.end_time), 0);
     const totalCapacity = totalRooms * availableHoursPerWeek;
     const utilization = totalCapacity > 0 ? Math.round((totalBookedHours / totalCapacity) * 100) : 0;
 
     res.json({
-      totalSlots: Number(totalSlots),
-      totalCourses: Number(totalCourses),
-      totalFaculty: Number(totalFaculty),
-      totalRooms: Number(totalRooms),
+      totalSlots,
+      totalCourses,
+      totalFaculty,
+      totalRooms,
       utilization,
     });
   } catch (error) {
@@ -31,18 +44,24 @@ export async function getOverview(req, res) {
 
 export async function getFacultyWorkload(req, res) {
   try {
-    const [rows] = await pool.query(`
-      SELECT
-        u.id, u.name, u.email,
-        COUNT(ts.id) AS slotCount,
-        COALESCE(SUM(TIME_TO_SEC(TIMEDIFF(ts.end_time, ts.start_time)) / 3600), 0) AS totalHours
-      FROM users u
-      LEFT JOIN timetable_slots ts ON ts.faculty_id = u.id
-      WHERE u.role = 'faculty'
-      GROUP BY u.id, u.name, u.email
-      ORDER BY totalHours DESC
-    `);
-    res.json(rows.map(r => ({ ...r, slotCount: Number(r.slotCount), totalHours: Math.round(Number(r.totalHours) * 100) / 100 })));
+    const faculty = await prisma.user.findMany({
+      where: { role: 'faculty' },
+      include: { timetable_slots: { select: { start_time: true, end_time: true } } }
+    });
+
+    const result = faculty.map(f => {
+      const totalHours = f.timetable_slots.reduce((sum, ts) => sum + diffHours(ts.start_time, ts.end_time), 0);
+      return {
+        id: f.id,
+        name: f.name,
+        email: f.email,
+        slotCount: f.timetable_slots.length,
+        totalHours: Math.round(totalHours * 100) / 100
+      };
+    });
+
+    result.sort((a, b) => b.totalHours - a.totalHours);
+    res.json(result);
   } catch (error) {
     console.error('Error in getFacultyWorkload:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -51,13 +70,15 @@ export async function getFacultyWorkload(req, res) {
 
 export async function getRoomUtilization(req, res) {
   try {
-    const [rooms] = await pool.query('SELECT id, name, capacity FROM rooms');
-    const [bookings] = await pool.query(`
-      SELECT room, SUM(TIME_TO_SEC(TIMEDIFF(end_time, start_time)) / 3600) AS bookedHours
-      FROM timetable_slots GROUP BY room
-    `);
+    const [rooms, slots] = await Promise.all([
+      prisma.room.findMany({ select: { id: true, name: true, capacity: true } }),
+      prisma.timetableSlot.findMany({ select: { room: true, start_time: true, end_time: true } })
+    ]);
+
     const bookedMap = {};
-    for (const b of bookings) bookedMap[b.room] = Number(b.bookedHours);
+    for (const s of slots) {
+      bookedMap[s.room] = (bookedMap[s.room] || 0) + diffHours(s.start_time, s.end_time);
+    }
 
     const availableHoursPerWeek = 12 * 5;
     const result = rooms.map(r => {
@@ -65,6 +86,7 @@ export async function getRoomUtilization(req, res) {
       const utilization = availableHoursPerWeek > 0 ? Math.round((booked / availableHoursPerWeek) * 100) : 0;
       return { id: r.id, name: r.name, capacity: r.capacity, bookedHours: Math.round(booked * 100) / 100, utilization };
     });
+
     res.json(result);
   } catch (error) {
     console.error('Error in getRoomUtilization:', error);
@@ -74,16 +96,14 @@ export async function getRoomUtilization(req, res) {
 
 export async function getDailyDistribution(req, res) {
   try {
-    const [rows] = await pool.query(`
-      SELECT day, COUNT(*) AS count
-      FROM timetable_slots
-      GROUP BY day
-      ORDER BY FIELD(day, 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT')
-    `);
-    const allDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const slots = await prisma.timetableSlot.findMany({ select: { day: true } });
+
     const counted = {};
-    for (const r of rows) counted[r.day] = Number(r.count);
+    for (const s of slots) counted[s.day] = (counted[s.day] || 0) + 1;
+
+    const allDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const result = allDays.map(day => ({ day, count: counted[day] || 0 }));
+
     res.json(result);
   } catch (error) {
     console.error('Error in getDailyDistribution:', error);
@@ -93,21 +113,22 @@ export async function getDailyDistribution(req, res) {
 
 export async function getTimeDistribution(req, res) {
   try {
-    const [rows] = await pool.query(`
-      SELECT
-        CASE
-          WHEN HOUR(start_time) < 12 THEN 'Morning (8-12)'
-          WHEN HOUR(start_time) < 16 THEN 'Afternoon (12-16)'
-          ELSE 'Evening (16-20)'
-        END AS period,
-        COUNT(*) AS count
-      FROM timetable_slots
-      GROUP BY period
-      ORDER BY FIELD(period, 'Morning (8-12)', 'Afternoon (12-16)', 'Evening (16-20)')
-    `);
+    const slots = await prisma.timetableSlot.findMany({ select: { start_time: true } });
+
     const periods = ['Morning (8-12)', 'Afternoon (12-16)', 'Evening (16-20)'];
     const counted = {};
-    for (const r of rows) counted[r.period] = Number(r.count);
+
+    for (const s of slots) {
+      const hour = typeof s.start_time === 'string'
+        ? parseInt(s.start_time.split(':')[0])
+        : s.start_time.getHours();
+      let period;
+      if (hour < 12) period = periods[0];
+      else if (hour < 16) period = periods[1];
+      else period = periods[2];
+      counted[period] = (counted[period] || 0) + 1;
+    }
+
     const result = periods.map(p => ({ period: p, count: counted[p] || 0 }));
     res.json(result);
   } catch (error) {
