@@ -7,20 +7,6 @@ export async function createUser(req, res) {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: 'All fields (name, email, password, role) are required' });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ message: 'Invalid email address' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters' });
-    }
-    const allowedRoles = ['student', 'faculty', 'admin'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
-    }
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await prisma.user.create({
@@ -44,20 +30,6 @@ export async function register(req, res) {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: 'All fields (name, email, password, role) are required' });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ message: 'Invalid email address' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters' });
-    }
-    const allowedRoles = ['student', 'faculty', 'admin'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
-    }
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await prisma.user.create({
@@ -80,10 +52,6 @@ export async function register(req, res) {
 export async function login(req, res) {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
 
     const user = await prisma.user.findUnique({ where: { email } });
 
@@ -119,14 +87,10 @@ export async function login(req, res) {
 
 export async function listUsers(req, res) {
   try {
-    const { role } = req.query;
-    const allowedRoles = ['student', 'faculty', 'admin'];
+    const { role } = req.validatedQuery || req.query;
 
     const where = {};
     if (role) {
-      if (!allowedRoles.includes(role)) {
-        return res.status(400).json({ message: `Invalid role filter. Use one of: ${allowedRoles.join(', ')}` });
-      }
       where.role = role;
     }
 
@@ -147,12 +111,12 @@ export async function deleteUser(req, res) {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.user.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await prisma.user.delete({ where: { id: Number(id) } });
+    await prisma.user.delete({ where: { id } });
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Error in deleteUser:', error);

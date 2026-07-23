@@ -23,14 +23,6 @@ export async function createSlot(req, res) {
   try {
     const { course_id, room, faculty_id, day, start_time, end_time } = req.body;
 
-    if (!course_id || !room || !faculty_id || !day || !start_time || !end_time) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    if (start_time >= end_time) {
-      return res.status(400).json({ message: 'end_time must be after start_time' });
-    }
-
     const conflicts = await detectConflicts({
       day, start_time, end_time, room, faculty_id
     });
@@ -131,7 +123,7 @@ export async function deleteSlot(req, res) {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    const slot = await prisma.timetableSlot.findUnique({ where: { id: Number(id) } });
+    const slot = await prisma.timetableSlot.findUnique({ where: { id } });
 
     if (!slot) {
       return res.status(404).json({ message: 'Slot not found' });
@@ -141,7 +133,7 @@ export async function deleteSlot(req, res) {
       return res.status(403).json({ message: 'You can only delete your own slots' });
     }
 
-    await prisma.timetableSlot.delete({ where: { id: Number(id) } });
+    await prisma.timetableSlot.delete({ where: { id } });
     res.json({ message: 'Slot deleted successfully' });
   } catch (error) {
     console.error('Error in deleteSlot:', error);
@@ -154,14 +146,7 @@ export async function updateSlot(req, res) {
     const { id } = req.params;
     const { course_id, room, faculty_id, day, start_time, end_time } = req.body;
 
-    if (!course_id || !room || !faculty_id || !day || !start_time || !end_time) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-    if (start_time >= end_time) {
-      return res.status(400).json({ message: 'end_time must be after start_time' });
-    }
-
-    const existing = await prisma.timetableSlot.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.timetableSlot.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Slot not found' });
     }
@@ -169,11 +154,11 @@ export async function updateSlot(req, res) {
     const [conflicts, existingSlots] = await Promise.all([
       detectConflicts({
         day, start_time, end_time, room, faculty_id,
-        excludeId: Number(id)
+        excludeId: id
       }),
       prisma.timetableSlot.findMany({
         where: {
-          id: { not: Number(id) },
+          id: { not: id },
           course_id, faculty_id, day
         },
         select: { id: true, start_time: true }
@@ -202,7 +187,7 @@ export async function updateSlot(req, res) {
     }
 
     await prisma.timetableSlot.update({
-      where: { id: Number(id) },
+      where: { id },
       data: {
         course_id, room, faculty_id, day,
         start_time: timeToDate(start_time),

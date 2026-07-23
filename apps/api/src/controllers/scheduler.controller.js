@@ -49,10 +49,6 @@ export async function apply(req, res) {
   try {
     const { slots, clearExisting } = req.body;
 
-    if (!slots || !Array.isArray(slots) || slots.length === 0) {
-      return res.status(400).json({ message: 'No slots provided' });
-    }
-
     if (clearExisting) {
       await prisma.timetableSlot.deleteMany();
     }
@@ -62,16 +58,6 @@ export async function apply(req, res) {
 
     for (let i = 0; i < slots.length; i++) {
       const s = slots[i];
-
-      if (!s.course_id || !s.faculty_id || !s.room || !s.day || !s.start_time || !s.end_time) {
-        errors.push({ index: i, message: 'Missing required fields', slot: s });
-        continue;
-      }
-
-      if (s.start_time >= s.end_time) {
-        errors.push({ index: i, message: 'end_time must be after start_time', slot: s });
-        continue;
-      }
 
       const roomConflicts = await detectConflicts({
         day: s.day,

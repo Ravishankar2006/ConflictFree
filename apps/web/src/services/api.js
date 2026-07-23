@@ -21,7 +21,7 @@ api.interceptors.request.use((config) => {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const login    = (credentials) => api.post('/api/auth/login', credentials);
 export const register = (userData)    => api.post('/api/auth/register', userData);
-export const getUsers = (role)        => api.get('/api/auth/users', { params: role ? { role } : {} });
+export const getUsers = (role)        => api.get('/api/users', { params: role ? { role } : {} });
 
 // ─── Timetable ───────────────────────────────────────────────────────────────
 export const getMyTimetable = ()           => api.get('/api/timetable/me');
@@ -81,8 +81,8 @@ export const assignFaculty       = (cid, fid) => api.post(`/api/course-faculty/$
 export const removeFaculty       = (cid, fid) => api.delete(`/api/course-faculty/${cid}/${fid}`);
 
 // ─── Admin User Management ───────────────────────────────────────────────────
-export const createUser = (data)  => api.post('/api/auth/users', data);
-export const deleteUser = (id)    => api.delete(`/api/auth/users/${id}`);
+export const createUser = (data)  => api.post('/api/users', data);
+export const deleteUser = (id)    => api.delete(`/api/users/${id}`);
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 export const getAnalyticsOverview = () => api.get('/api/analytics/overview');

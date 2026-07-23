@@ -984,7 +984,7 @@ function UsersTab({ toast }) {
             <input
               type="password" placeholder="Password" value={form.password}
               onChange={e => setForm({...form, password: e.target.value})}
-              className="form-input" required minLength={6}
+              className="form-input" required minLength={8}
             />
             <select
               value={form.role}

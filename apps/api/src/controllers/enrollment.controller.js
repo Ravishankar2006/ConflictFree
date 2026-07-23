@@ -33,10 +33,6 @@ export async function createEnrollment(req, res) {
   try {
     const { student_id, course_id } = req.body;
 
-    if (!student_id || !course_id) {
-      return res.status(400).json({ message: 'student_id and course_id are required' });
-    }
-
     const student = await prisma.user.findUnique({ where: { id: student_id } });
     if (!student || student.role !== 'student') {
       return res.status(404).json({ message: 'Student not found' });
@@ -68,12 +64,12 @@ export async function deleteEnrollment(req, res) {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.enrollment.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.enrollment.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Enrollment not found' });
     }
 
-    await prisma.enrollment.delete({ where: { id: Number(id) } });
+    await prisma.enrollment.delete({ where: { id } });
     res.json({ message: 'Enrollment removed successfully' });
   } catch (error) {
     console.error('Error in deleteEnrollment:', error);

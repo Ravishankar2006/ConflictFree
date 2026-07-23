@@ -5,7 +5,7 @@ export async function getCourseFaculty(req, res) {
     const { courseId } = req.params;
 
     const rows = await prisma.courseFaculty.findMany({
-      where: { course_id: Number(courseId) },
+      where: { course_id: courseId },
       include: { faculty: { select: { id: true, name: true, email: true } } }
     });
 
@@ -50,23 +50,19 @@ export async function assignFaculty(req, res) {
     const { courseId } = req.params;
     const { faculty_id } = req.body;
 
-    if (!faculty_id) {
-      return res.status(400).json({ message: 'faculty_id is required' });
-    }
-
     const faculty = await prisma.user.findUnique({ where: { id: faculty_id } });
     if (!faculty || faculty.role !== 'faculty') {
       return res.status(404).json({ message: 'Faculty not found' });
     }
 
-    const course = await prisma.course.findUnique({ where: { id: Number(courseId) } });
+    const course = await prisma.course.findUnique({ where: { id: courseId } });
     if (!course) {
       return res.status(404).json({ message: 'Course not found' });
     }
 
     try {
       await prisma.courseFaculty.create({
-        data: { course_id: Number(courseId), faculty_id }
+        data: { course_id: courseId, faculty_id }
       });
     } catch (e) {
       if (e.code !== 'P2002') throw e;
@@ -84,7 +80,7 @@ export async function removeFaculty(req, res) {
     const { courseId, facultyId } = req.params;
 
     await prisma.courseFaculty.deleteMany({
-      where: { course_id: Number(courseId), faculty_id: Number(facultyId) }
+      where: { course_id: courseId, faculty_id: facultyId }
     });
 
     res.json({ message: 'Faculty removed from course' });

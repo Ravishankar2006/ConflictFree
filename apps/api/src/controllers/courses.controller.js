@@ -17,12 +17,8 @@ export async function createCourse(req, res) {
   try {
     const { name, code } = req.body;
 
-    if (!name || !code) {
-      return res.status(400).json({ message: 'Course name and code are required' });
-    }
-
     const result = await prisma.course.create({
-      data: { name: name.trim(), code: code.trim().toUpperCase() }
+      data: { name, code: code.toUpperCase() }
     });
 
     res.status(201).json({
@@ -42,12 +38,12 @@ export async function deleteCourse(req, res) {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.course.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.course.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    await prisma.course.delete({ where: { id: Number(id) } });
+    await prisma.course.delete({ where: { id } });
     res.json({ message: 'Course deleted successfully' });
   } catch (error) {
     console.error('Error in deleteCourse:', error);

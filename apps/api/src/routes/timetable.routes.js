@@ -1,25 +1,17 @@
 import { Router } from 'express';
 import { createSlot, getMyTimetable, getAllSlots, deleteSlot, updateSlot, exportIcal } from '../controllers/timetable.controller.js';
 import { verifyToken, requireRole } from '../middleware/auth.middleware.js';
+import { validate, validateParams } from '../middleware/validate.middleware.js';
+import { createSlotSchema, updateSlotSchema } from '../validators/timetable.schema.js';
+import { idParamSchema } from '../validators/params.schema.js';
 
 const router = Router();
 
-// Get my timetable (any authenticated user)
 router.get('/me', verifyToken, getMyTimetable);
-
-// Export my timetable as iCal
 router.get('/export/ical', verifyToken, exportIcal);
-
-// Get all slots (admin only)
 router.get('/slots', verifyToken, requireRole('admin'), getAllSlots);
-
-// Create a new timetable slot (ADMIN ONLY)
-router.post('/slots', verifyToken, requireRole('admin'), createSlot);
-
-// Update (reschedule) a timetable slot (ADMIN ONLY)
-router.patch('/slots/:id', verifyToken, requireRole('admin'), updateSlot);
-
-// Delete a timetable slot (ADMIN ONLY)
-router.delete('/slots/:id', verifyToken, requireRole('admin'), deleteSlot);
+router.post('/slots', verifyToken, requireRole('admin'), validate(createSlotSchema), createSlot);
+router.patch('/slots/:id', verifyToken, requireRole('admin'), validateParams(idParamSchema), validate(updateSlotSchema), updateSlot);
+router.delete('/slots/:id', verifyToken, requireRole('admin'), validateParams(idParamSchema), deleteSlot);
 
 export default router;

@@ -10,7 +10,7 @@ export async function listAvailability(req, res) {
     let rows;
     if (facultyId) {
       rows = await prisma.facultyAvailability.findMany({
-        where: { faculty_id: Number(facultyId) }
+        where: { faculty_id: facultyId }
       });
     } else {
       rows = await prisma.facultyAvailability.findMany({
@@ -34,14 +34,6 @@ export async function listAvailability(req, res) {
 export async function setAvailability(req, res) {
   try {
     const { faculty_id, day, start_time, end_time } = req.body;
-
-    if (!faculty_id || !day || !start_time || !end_time) {
-      return res.status(400).json({ message: 'faculty_id, day, start_time, and end_time are required' });
-    }
-
-    if (start_time >= end_time) {
-      return res.status(400).json({ message: 'end_time must be after start_time' });
-    }
 
     await prisma.facultyAvailability.upsert({
       where: { faculty_id_day: { faculty_id, day } },
@@ -75,21 +67,15 @@ export async function updateMyAvailability(req, res) {
     const { availability } = req.body;
     const facultyId = req.user.id;
 
-    if (!Array.isArray(availability)) {
-      return res.status(400).json({ message: 'availability must be an array of { day, start_time, end_time }' });
-    }
-
     await prisma.facultyAvailability.deleteMany({ where: { faculty_id: facultyId } });
 
     if (availability.length === 0) {
       return res.json({ message: 'All availability cleared' });
     }
 
-    const entries = availability.map(({ day, start_time, end_time }) => {
-      if (!day || !start_time || !end_time) throw new Error('Each entry needs day, start_time, end_time');
-      if (start_time >= end_time) throw new Error(`end_time must be after start_time for ${day}`);
-      return { faculty_id: facultyId, day, start_time: timeToDate(start_time), end_time: timeToDate(end_time) };
-    });
+    const entries = availability.map(({ day, start_time, end_time }) => ({
+      faculty_id: facultyId, day, start_time: timeToDate(start_time), end_time: timeToDate(end_time)
+    }));
 
     await prisma.facultyAvailability.createMany({ data: entries });
 
@@ -104,12 +90,12 @@ export async function deleteAvailability(req, res) {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.facultyAvailability.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.facultyAvailability.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Availability record not found' });
     }
 
-    await prisma.facultyAvailability.delete({ where: { id: Number(id) } });
+    await prisma.facultyAvailability.delete({ where: { id } });
     res.json({ message: 'Availability deleted successfully' });
   } catch (error) {
     console.error('Error in deleteAvailability:', error);

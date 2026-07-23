@@ -77,12 +77,12 @@ export async function resolveConflict(req, res) {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.timetableSlot.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.timetableSlot.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Slot not found' });
     }
 
-    await prisma.timetableSlot.delete({ where: { id: Number(id) } });
+    await prisma.timetableSlot.delete({ where: { id } });
     res.json({ message: `Conflict resolved — slot #${id} deleted successfully` });
   } catch (error) {
     console.error('Error in resolveConflict:', error);

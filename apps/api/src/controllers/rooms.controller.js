@@ -14,12 +14,8 @@ export async function createRoom(req, res) {
   try {
     const { name, capacity } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ message: 'Room name is required' });
-    }
-
     const result = await prisma.room.create({
-      data: { name: name.trim(), capacity: capacity || 30 }
+      data: { name, capacity: capacity ?? 30 }
     });
 
     res.status(201).json({
@@ -39,12 +35,12 @@ export async function deleteRoom(req, res) {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.room.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.room.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    await prisma.room.delete({ where: { id: Number(id) } });
+    await prisma.room.delete({ where: { id } });
     res.json({ message: 'Room deleted successfully' });
   } catch (error) {
     console.error('Error in deleteRoom:', error);
