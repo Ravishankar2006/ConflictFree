@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 
 export async function getCourseFaculty(req, res) {
   try {
-    const { courseId } = req.params;
+    const courseId = Number(req.params.courseId);
 
     const rows = await prisma.courseFaculty.findMany({
       where: { course_id: courseId },
@@ -47,8 +47,8 @@ export async function getAllAssignments(req, res) {
 
 export async function assignFaculty(req, res) {
   try {
-    const { courseId } = req.params;
-    const { faculty_id } = req.body;
+    const courseId = Number(req.params.courseId);
+    const faculty_id = Number(req.body.faculty_id);
 
     const faculty = await prisma.user.findUnique({ where: { id: faculty_id } });
     if (!faculty || faculty.role !== 'faculty') {
@@ -77,7 +77,8 @@ export async function assignFaculty(req, res) {
 
 export async function removeFaculty(req, res) {
   try {
-    const { courseId, facultyId } = req.params;
+    const courseId = Number(req.params.courseId);
+    const facultyId = Number(req.params.facultyId);
 
     await prisma.courseFaculty.deleteMany({
       where: { course_id: courseId, faculty_id: facultyId }

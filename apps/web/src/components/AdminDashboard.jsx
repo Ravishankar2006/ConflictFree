@@ -6,9 +6,11 @@ import {
   getCourses, createCourse, deleteCourse,
   getEnrollments, createEnrollment, deleteEnrollment,
   getUsers, getRooms, createRoom, deleteRoom,
+  getClasses, createClass, deleteClass,
   generateTimetable, applyTimetable,
   getCourseFaculty, getAllAssignments, assignFaculty, removeFaculty,
   createUser, deleteUser, downloadIcs,
+  getDepartments, createDepartment, deleteDepartment,
 } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
 import ConfirmModal from './ConfirmModal';
@@ -18,7 +20,7 @@ import '../styles/AdminDashboard.css';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-const EMPTY_SLOT = { course_id: '', room: '', faculty_id: '', day: 'MON', start_time: '', end_time: '' };
+const EMPTY_SLOT = { course_id: '', room: '', faculty_id: '', day: 'MON', start_time: '', end_time: '', class_id: '' };
 
 // ═══════════════════════════════════════════════
 // Timetable Tab
@@ -28,6 +30,10 @@ function TimetableTab({ toast }) {
   const [courses, setCourses]       = useState([]);
   const [faculty, setFaculty]       = useState([]);
   const [rooms, setRooms]           = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [classes, setClasses]       = useState([]);
+  const [filterDeptId, setFilterDeptId] = useState('');
+  const [filterClassId, setFilterClassId] = useState('');
   const [loading, setLoading]       = useState(true);
   const [formData, setFormData]     = useState(EMPTY_SLOT);
   const [editingId, setEditingId]   = useState(null);
@@ -40,24 +46,41 @@ function TimetableTab({ toast }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [slotsRes, coursesRes, facultyRes, roomsRes] = await Promise.all([
-        getAllSlots(),
+      const params = {};
+      if (filterDeptId) params.department_id = filterDeptId;
+      const [slotsRes, coursesRes, facultyRes, roomsRes, deptsRes, classesRes] = await Promise.all([
+        getAllSlots(params),
         getCourses(),
         getUsers('faculty'),
         getRooms(),
+        getDepartments(),
+        getClasses(),
       ]);
       setSlots(slotsRes.data);
       setCourses(coursesRes.data);
       setFaculty(facultyRes.data);
       setRooms(roomsRes.data);
+      setDepartments(deptsRes.data);
+      setClasses(classesRes.data);
     } catch {
       toast('Failed to load timetable data', 'error');
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, filterDeptId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const filteredClasses = filterDeptId
+    ? classes.filter(c => c.department_id === parseInt(filterDeptId))
+    : classes;
+
+  // Clear class filter when department changes (if the class no longer belongs to the dept)
+  useEffect(() => {
+    if (filterClassId && filteredClasses.length > 0 && !filteredClasses.some(c => c.id === parseInt(filterClassId))) {
+      setFilterClassId('');
+    }
+  }, [filterDeptId, filteredClasses, filterClassId]);
 
   const openCreate = () => { setFormData(EMPTY_SLOT); setEditingId(null); setShowForm(true); };
   const openEdit   = (slot) => {
@@ -66,8 +89,9 @@ function TimetableTab({ toast }) {
       room:       slot.room,
       faculty_id: slot.faculty_id,
       day:        slot.day,
-      start_time: slot.start_time.slice(0, 5),
-      end_time:   slot.end_time.slice(0, 5),
+      start_time: slot.start_time?.slice(0, 5) || '08:00',
+      end_time:   slot.end_time?.slice(0, 5) || '09:00',
+      class_id:   slot.class_id || '',
     });
     setEditingId(slot.id);
     setShowForm(true);
@@ -76,12 +100,21 @@ function TimetableTab({ toast }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const payload = {
+      course_id: parseInt(formData.course_id),
+      class_id: formData.class_id ? parseInt(formData.class_id) : null,
+      room: formData.room,
+      faculty_id: parseInt(formData.faculty_id),
+      day: formData.day,
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+    };
     try {
       if (editingId) {
-        await updateSlot(editingId, formData);
+        await updateSlot(editingId, payload);
         toast('Slot updated successfully', 'success');
       } else {
-        await createSlot(formData);
+        await createSlot(payload);
         toast('Slot created successfully', 'success');
       }
       closeForm();
@@ -121,6 +154,10 @@ function TimetableTab({ toast }) {
     rooms:   new Set(slots.map(s => s.room)).size,
   };
 
+  const displayedSlots = filterClassId
+    ? slots.filter(s => s.class_id === parseInt(filterClassId))
+    : slots;
+
   const handleSlotMove = async (slotId, data) => {
     const slot = slots.find(s => s.id === slotId);
     if (!slot) return;
@@ -132,6 +169,7 @@ function TimetableTab({ toast }) {
         day: data.day,
         start_time: data.start_time,
         end_time: data.end_time,
+        class_id: slot.class_id || null,
       });
       toast('Slot rescheduled successfully', 'success');
       load();
@@ -149,6 +187,32 @@ function TimetableTab({ toast }) {
       {/* Controls (screen only) */}
       <div className="screen-only tab-controls">
         <div className="tab-controls-left">
+          <div className="filter-group">
+            <label className="filter-label">Department</label>
+            <select
+              value={filterDeptId}
+              onChange={e => setFilterDeptId(e.target.value)}
+              className="form-input filter-select"
+            >
+              <option value="">All Departments</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label className="filter-label">Class</label>
+            <select
+              value={filterClassId}
+              onChange={e => setFilterClassId(e.target.value)}
+              className="form-input filter-select"
+            >
+              <option value="">All Classes</option>
+              {filteredClasses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="view-toggle">
             <button
               className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'}
@@ -210,7 +274,20 @@ function TimetableTab({ toast }) {
               >
                 <option value="">Select a room…</option>
                 {rooms.map(r => (
-                  <option key={r.id} value={r.name}>{r.name} (capacity: {r.capacity})</option>
+                  <option key={r.id} value={r.name}>{r.name} (capacity: {r.capacity}){r.is_lab ? ' 🔬 Lab' : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Class</label>
+              <select
+                value={formData.class_id}
+                onChange={e => setFormData({...formData, class_id: e.target.value})}
+                className="form-input"
+              >
+                <option value="">No specific class</option>
+                {filteredClasses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -266,26 +343,27 @@ function TimetableTab({ toast }) {
             </div>
           ))}
         </div>
-        {slots.length === 0 ? (
+        {displayedSlots.length === 0 ? (
           <div className="empty-state">No timetable slots yet.</div>
         ) : (
           viewMode === 'calendar' ? (
-            <TimetableCalendar slots={slots} onSlotMove={handleSlotMove} />
+            <TimetableCalendar slots={displayedSlots} onSlotMove={handleSlotMove} />
           ) : (
             <div className="table-container">
               <div className="table-wrapper">
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th><th>Course</th><th>Faculty</th>
+                      <th>ID</th><th>Course</th><th>Class</th><th>Faculty</th>
                       <th>Day</th><th>Time</th><th>Room</th>
                     </tr>
                   </thead>
                   <tbody>
-                {slots.map(slot => (
+                {displayedSlots.map(slot => (
                   <tr key={slot.id}>
                     <td>{slot.id}</td>
                     <td>{slot.course_code} — {slot.course_name}</td>
+                    <td>{slot.class_name || '—'}</td>
                     <td>{slot.faculty_name}</td>
                     <td>{slot.day}</td>
                     <td>{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</td>
@@ -444,7 +522,7 @@ function CoursesTab({ toast }) {
   const [faculty, setFaculty]       = useState([]);
   const [assignments, setAssignments] = useState({}); // courseId -> [faculty]
   const [loading, setLoading]       = useState(true);
-  const [form, setForm]             = useState({ name: '', code: '' });
+  const [form, setForm]             = useState({ name: '', code: '', is_lab: false });
   const [showForm, setShowForm]     = useState(false);
   const [expandedCourse, setExpandedCourse] = useState(null);
   const [assignFacultyId, setAssignFacultyId] = useState('');
@@ -481,7 +559,7 @@ function CoursesTab({ toast }) {
     try {
       await createCourse(form);
       toast('Course created', 'success');
-      setForm({ name: '', code: '' });
+      setForm({ name: '', code: '', is_lab: false });
       setShowForm(false);
       load();
     } catch (err) {
@@ -554,6 +632,13 @@ function CoursesTab({ toast }) {
               onChange={e => setForm({...form, name: e.target.value})}
               className="form-input" required style={{ flex: 2 }}
             />
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox" checked={form.is_lab}
+                onChange={e => setForm({...form, is_lab: e.target.checked})}
+              />
+              Lab Course
+            </label>
             <button type="submit" className="btn-submit">Add</button>
           </form>
         </div>
@@ -567,7 +652,7 @@ function CoursesTab({ toast }) {
             <table>
               <thead>
                 <tr>
-                  <th>Code</th><th>Name</th><th>Assigned Faculty</th><th>Action</th>
+                  <th>Code</th><th>Name</th><th>Lab</th><th>Assigned Faculty</th><th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -575,6 +660,7 @@ function CoursesTab({ toast }) {
                   <tr key={c.id}>
                     <td><span className="course-code-badge">{c.code}</span></td>
                     <td>{c.name}</td>
+                    <td>{c.is_lab ? '✅' : '—'}</td>
                     <td>
                       {(assignments[c.id] || []).map(f => (
                         <span key={f.id} className="faculty-chip">
@@ -779,7 +865,7 @@ function EnrollmentsTab({ toast }) {
 function RoomsTab({ toast }) {
   const [rooms, setRooms]       = useState([]);
   const [loading, setLoading]   = useState(true);
-  const [form, setForm]         = useState({ name: '', capacity: 30 });
+  const [form, setForm]         = useState({ name: '', capacity: 30, is_lab: false });
   const [showForm, setShowForm] = useState(false);
   const [confirm, setConfirm]   = useState({ open: false, id: null, name: '' });
 
@@ -850,6 +936,13 @@ function RoomsTab({ toast }) {
               onChange={e => setForm({...form, capacity: parseInt(e.target.value) || 30})}
               className="form-input" required style={{ maxWidth: 120 }}
             />
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox" checked={form.is_lab}
+                onChange={e => setForm({...form, is_lab: e.target.checked})}
+              />
+              Lab Room
+            </label>
             <button type="submit" className="btn-submit">Add</button>
           </form>
         </div>
@@ -861,13 +954,14 @@ function RoomsTab({ toast }) {
         <div className="table-container">
           <div className="table-wrapper">
             <table>
-              <thead><tr><th>ID</th><th>Name</th><th>Capacity</th><th>Action</th></tr></thead>
+              <thead><tr><th>ID</th><th>Name</th><th>Capacity</th><th>Lab</th><th>Action</th></tr></thead>
               <tbody>
                 {rooms.map(r => (
                   <tr key={r.id}>
                     <td>{r.id}</td>
                     <td>{r.name}</td>
                     <td>{r.capacity}</td>
+                    <td>{r.is_lab ? '✅' : '—'}</td>
                     <td>
                       <button className="btn-delete-small" onClick={() => handleDelete(r.id, r.name)}>🗑️</button>
                     </td>
@@ -883,6 +977,126 @@ function RoomsTab({ toast }) {
         open={confirm.open}
         title="Delete Room"
         message={`Are you sure you want to delete room "${confirm.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirm({ open: false, id: null, name: '' })}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// Departments Tab
+// ═══════════════════════════════════════════════
+function DepartmentsTab({ toast }) {
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ name: '', code: '' });
+  const [showForm, setShowForm] = useState(false);
+  const [confirm, setConfirm] = useState({ open: false, id: null, name: '' });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getDepartments();
+      setDepartments(res.data);
+    } catch {
+      toast('Failed to load departments', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      await createDepartment(form);
+      toast('Department created', 'success');
+      setForm({ name: '', code: '' });
+      setShowForm(false);
+      load();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to create department', 'error');
+    }
+  };
+
+  const handleDelete = (id, name) => {
+    setConfirm({ open: true, id, name });
+  };
+
+  const executeDelete = async () => {
+    try {
+      await deleteDepartment(confirm.id);
+      toast('Department deleted', 'success');
+      load();
+    } catch {
+      toast('Failed to delete department', 'error');
+    } finally {
+      setConfirm({ open: false, id: null, name: '' });
+    }
+  };
+
+  if (loading) return <div className="loading" />;
+
+  return (
+    <div className="admin-tab">
+      <div className="tab-controls">
+        <h2 className="tab-title">🏢 Departments ({departments.length})</h2>
+        <button className="btn-create" onClick={() => setShowForm(s => !s)}>
+          {showForm ? '✕ Cancel' : '+ Add Department'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="form-card form-card-compact">
+          <form onSubmit={handleCreate} className="form-inline">
+            <input
+              type="text" placeholder="Department Name" value={form.name}
+              onChange={e => setForm({...form, name: e.target.value})}
+              className="form-input" required
+            />
+            <input
+              type="text" placeholder="Code (e.g. CSE)" value={form.code}
+              onChange={e => setForm({...form, code: e.target.value.toUpperCase()})}
+              className="form-input" required style={{ maxWidth: 120 }}
+            />
+            <button type="submit" className="btn-submit">Create</button>
+          </form>
+        </div>
+      )}
+
+      {departments.length === 0 ? (
+        <div className="empty-state">No departments yet. Add one above.</div>
+      ) : (
+        <div className="table-container">
+          <div className="table-wrapper">
+            <table>
+              <thead><tr><th>ID</th><th>Name</th><th>Code</th><th>Head</th><th>Action</th></tr></thead>
+              <tbody>
+                {departments.map(d => (
+                  <tr key={d.id}>
+                    <td>{d.id}</td>
+                    <td>{d.name}</td>
+                    <td><span className="course-code-badge">{d.code}</span></td>
+                    <td style={{ color: 'var(--text-muted)' }}>{d.head?.name || '—'}</td>
+                    <td>
+                      <button className="btn-delete-small" onClick={() => handleDelete(d.id, d.name)}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete Department"
+        message={`Are you sure you want to delete department "${confirm.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onConfirm={executeDelete}
@@ -1047,6 +1261,8 @@ const DAY_LABELS = { MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thur
 function SchedulerTab({ toast }) {
   const [step, setStep]             = useState('idle'); // idle | generating | preview | applying | done
   const [generated, setGenerated]   = useState(null);
+  const [departments, setDepartments] = useState([]);
+  const [classes, setClasses]         = useState([]);
   const [config, setConfig]         = useState({
     startTime: '08:00',
     endTime: '17:00',
@@ -1054,9 +1270,28 @@ function SchedulerTab({ toast }) {
     slotsPerCourse: 1,
     excludedDays: [],
     clearExisting: true,
+    department_id: '',
+    class_id: '',
   });
 
   const updateConfig = (key, value) => setConfig(prev => ({ ...prev, [key]: value }));
+
+  useEffect(() => {
+    Promise.all([
+      getDepartments().then(res => setDepartments(res.data)),
+      getClasses().then(res => setClasses(res.data)),
+    ]).catch(() => {});
+  }, []);
+
+  // Clear class selection when department changes
+  useEffect(() => {
+    if (config.class_id && config.department_id) {
+      const deptId = parseInt(config.department_id);
+      if (!classes.some(c => c.id === parseInt(config.class_id) && c.department_id === deptId)) {
+        updateConfig('class_id', '');
+      }
+    }
+  }, [config.department_id]);
 
   const toggleExcludedDay = (day) => {
     setConfig(prev => ({
@@ -1076,6 +1311,8 @@ function SchedulerTab({ toast }) {
         slotDuration: config.slotDuration,
         slotsPerCourse: config.slotsPerCourse,
         excludedDays: config.excludedDays,
+        department_id: config.department_id || undefined,
+        class_id: config.class_id ? parseInt(config.class_id) : undefined,
       });
       setGenerated(res.data);
       setStep('preview');
@@ -1095,6 +1332,8 @@ function SchedulerTab({ toast }) {
       const res = await applyTimetable({
         slots: generated.slots,
         clearExisting: config.clearExisting,
+        department_id: config.department_id || undefined,
+        class_id: config.class_id ? parseInt(config.class_id) : undefined,
       });
       toast(res.data.message || 'Timetable applied', 'success');
       setStep('done');
@@ -1186,6 +1425,38 @@ function SchedulerTab({ toast }) {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="scheduler-param-section">
+              <label className="scheduler-param-label">Department</label>
+              <select
+                value={config.department_id}
+                onChange={e => updateConfig('department_id', e.target.value)}
+                className="form-input"
+                style={{ maxWidth: 280 }}
+              >
+                <option value="">All Departments</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="scheduler-param-section">
+              <label className="scheduler-param-label">Class</label>
+              <select
+                value={config.class_id}
+                onChange={e => updateConfig('class_id', e.target.value)}
+                className="form-input"
+                style={{ maxWidth: 280 }}
+              >
+                <option value="">All Classes</option>
+                {classes
+                  .filter(c => !config.department_id || c.department_id === parseInt(config.department_id))
+                  .map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="scheduler-param-divider" />
@@ -1293,6 +1564,155 @@ function SchedulerTab({ toast }) {
 }
 
 // ═══════════════════════════════════════════════
+// Classes Tab
+// ═══════════════════════════════════════════════
+function ClassesTab({ toast }) {
+  const [classes, setClasses]       = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [rooms, setRooms]           = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [form, setForm]             = useState({ name: '', department_id: '', home_room_id: '' });
+  const [showForm, setShowForm]     = useState(false);
+  const [confirm, setConfirm]       = useState({ open: false, id: null, name: '' });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [classesRes, deptRes, roomsRes] = await Promise.all([
+        getClasses(),
+        getDepartments(),
+        getRooms(),
+      ]);
+      setClasses(classesRes.data);
+      setDepartments(deptRes.data);
+      setRooms(roomsRes.data);
+    } catch {
+      toast('Failed to load classes', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      await createClass({
+        name: form.name,
+        department_id: parseInt(form.department_id),
+        home_room_id: parseInt(form.home_room_id),
+      });
+      toast('Class created', 'success');
+      setForm({ name: '', department_id: '', home_room_id: '' });
+      setShowForm(false);
+      load();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to create class', 'error');
+    }
+  };
+
+  const handleDelete = (id, name) => {
+    setConfirm({ open: true, id, name });
+  };
+
+  const executeDelete = async () => {
+    try {
+      await deleteClass(confirm.id);
+      toast(`Class ${confirm.name} deleted`, 'success');
+      load();
+    } catch {
+      toast('Failed to delete class', 'error');
+    } finally {
+      setConfirm({ open: false, id: null, name: '' });
+    }
+  };
+
+  if (loading) return <div className="loading" />;
+
+  return (
+    <div className="admin-tab">
+      <div className="tab-controls">
+        <h2 className="tab-title">🏫 Classes ({classes.length})</h2>
+        <button className="btn-create" onClick={() => setShowForm(s => !s)}>
+          {showForm ? '✕ Cancel' : '+ New Class'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="form-card form-card-compact">
+          <form onSubmit={handleCreate} className="form-inline">
+            <input
+              type="text" placeholder="Class name (e.g. CSE-A)" value={form.name}
+              onChange={e => setForm({...form, name: e.target.value})}
+              className="form-input" required
+            />
+            <select
+              value={form.department_id}
+              onChange={e => setForm({...form, department_id: e.target.value})}
+              className="form-input" required
+              style={{ maxWidth: 180 }}
+            >
+              <option value="">Department…</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <select
+              value={form.home_room_id}
+              onChange={e => setForm({...form, home_room_id: e.target.value})}
+              className="form-input" required
+              style={{ maxWidth: 180 }}
+            >
+              <option value="">Home Room…</option>
+              {rooms.filter(r => !r.is_lab).map(r => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+            <button type="submit" className="btn-submit">Add</button>
+          </form>
+        </div>
+      )}
+
+      {classes.length === 0 ? (
+        <div className="empty-state">No classes yet. Add one above.</div>
+      ) : (
+        <div className="table-container">
+          <div className="table-wrapper">
+            <table>
+              <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Home Room</th><th>Action</th></tr></thead>
+              <tbody>
+                {classes.map(c => (
+                  <tr key={c.id}>
+                    <td>{c.id}</td>
+                    <td><strong>{c.name}</strong></td>
+                    <td>{c.department?.name}</td>
+                    <td>{c.home_room?.name}</td>
+                    <td>
+                      <button className="btn-delete-small" onClick={() => handleDelete(c.id, c.name)}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete Class"
+        message={`Are you sure you want to delete class "${confirm.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirm({ open: false, id: null, name: '' })}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
 // Admin Dashboard Root
 // ═══════════════════════════════════════════════
 export default function AdminDashboard({ activeTab = 'timetable', onTabChange }) {
@@ -1300,14 +1720,16 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'analytics':   return <AnalyticsTab     toast={addToast} />;
-      case 'conflicts':   return <ConflictsTab    toast={addToast} />;
-      case 'courses':     return <CoursesTab       toast={addToast} />;
-      case 'enrollments': return <EnrollmentsTab   toast={addToast} />;
-      case 'rooms':       return <RoomsTab         toast={addToast} />;
-      case 'users':       return <UsersTab         toast={addToast} />;
-      case 'scheduler':   return <SchedulerTab     toast={addToast} />;
-      default:            return <TimetableTab     toast={addToast} />;
+      case 'analytics':   return <AnalyticsTab      toast={addToast} />;
+      case 'classes':     return <ClassesTab         toast={addToast} />;
+      case 'conflicts':   return <ConflictsTab     toast={addToast} />;
+      case 'courses':     return <CoursesTab        toast={addToast} />;
+      case 'departments': return <DepartmentsTab    toast={addToast} />;
+      case 'enrollments': return <EnrollmentsTab    toast={addToast} />;
+      case 'rooms':       return <RoomsTab          toast={addToast} />;
+      case 'users':       return <UsersTab          toast={addToast} />;
+      case 'scheduler':   return <SchedulerTab      toast={addToast} />;
+      default:            return <TimetableTab      toast={addToast} />;
     }
   };
 
@@ -1320,6 +1742,8 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
             {activeTab === 'scheduler'   && '🤖 AI Timetable Generator'}
             {activeTab === 'conflicts'   && '⚠️ Conflict Resolution'}
             {activeTab === 'courses'     && '📚 Course Management'}
+            {activeTab === 'classes'     && '🏫 Class Management'}
+            {activeTab === 'departments' && '🏢 Department Management'}
             {activeTab === 'rooms'       && '🏛️ Room Management'}
             {activeTab === 'users'       && '👤 User Management'}
             {activeTab === 'enrollments' && '👥 Enrollment Management'}

@@ -18,4 +18,5 @@ export const createUserSchema = registerSchema;
 
 export const listUsersSchema = z.object({
   role: z.enum(roles, { message: `Invalid role filter. Use one of: ${roles.join(', ')}` }).optional(),
+  department_id: z.coerce.number().int().positive().optional(),
 });

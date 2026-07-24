@@ -18,6 +18,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 Unauthorized globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const login    = (credentials) => api.post('/api/auth/login', credentials);
 export const register = (userData)    => api.post('/api/auth/register', userData);
@@ -25,7 +40,7 @@ export const getUsers = (role)        => api.get('/api/users', { params: role ? 
 
 // ─── Timetable ───────────────────────────────────────────────────────────────
 export const getMyTimetable = ()           => api.get('/api/timetable/me');
-export const getAllSlots     = ()           => api.get('/api/timetable/slots');
+export const getAllSlots     = (params)     => api.get('/api/timetable/slots', { params });
 export const createSlot     = (data)       => api.post('/api/timetable/slots', data);
 export const updateSlot     = (id, data)   => api.patch(`/api/timetable/slots/${id}`, data);
 export const deleteSlot     = (id)         => api.delete(`/api/timetable/slots/${id}`);
@@ -83,6 +98,23 @@ export const removeFaculty       = (cid, fid) => api.delete(`/api/course-faculty
 // ─── Admin User Management ───────────────────────────────────────────────────
 export const createUser = (data)  => api.post('/api/users', data);
 export const deleteUser = (id)    => api.delete(`/api/users/${id}`);
+
+// ─── Departments ────────────────────────────────────────────────────────────
+export const getDepartments    = ()      => api.get('/api/departments');
+export const createDepartment  = (data)  => api.post('/api/departments', data);
+export const updateDepartment  = (id, d) => api.patch(`/api/departments/${id}`, d);
+export const deleteDepartment  = (id)    => api.delete(`/api/departments/${id}`);
+
+// ─── Classes (Sections/Cohorts) ────────────────────────────────────────────
+export const getClasses     = (params) => api.get('/api/classes', { params });
+export const createClass    = (data)   => api.post('/api/classes', data);
+export const deleteClass    = (id)     => api.delete(`/api/classes/${id}`);
+
+// ─── Semesters ─────────────────────────────────────────────────────────────
+export const getSemesters    = ()      => api.get('/api/semesters');
+export const createSemester  = (data)  => api.post('/api/semesters', data);
+export const updateSemester  = (id, d) => api.patch(`/api/semesters/${id}`, d);
+export const deleteSemester  = (id)    => api.delete(`/api/semesters/${id}`);
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 export const getAnalyticsOverview = () => api.get('/api/analytics/overview');

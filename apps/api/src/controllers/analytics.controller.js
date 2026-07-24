@@ -16,12 +16,15 @@ function diffHours(start, end) {
 
 export async function getOverview(req, res) {
   try {
+    const { semester_id } = req.query;
+    const slotWhere = semester_id ? { semester_id: Number(semester_id) } : {};
+
     const [totalSlots, totalCourses, totalFaculty, totalRooms, allSlots] = await Promise.all([
-      prisma.timetableSlot.count(),
+      prisma.timetableSlot.count({ where: slotWhere }),
       prisma.course.count(),
       prisma.user.count({ where: { role: 'faculty' } }),
       prisma.room.count(),
-      prisma.timetableSlot.findMany({ select: { start_time: true, end_time: true } })
+      prisma.timetableSlot.findMany({ where: slotWhere, select: { start_time: true, end_time: true } })
     ]);
 
     const availableHoursPerWeek = 12 * 5;
@@ -44,9 +47,12 @@ export async function getOverview(req, res) {
 
 export async function getFacultyWorkload(req, res) {
   try {
+    const { semester_id } = req.query;
+    const slotWhere = semester_id ? { semester_id: Number(semester_id) } : {};
+
     const faculty = await prisma.user.findMany({
       where: { role: 'faculty' },
-      include: { timetable_slots: { select: { start_time: true, end_time: true } } }
+      include: { timetable_slots: { where: slotWhere, select: { start_time: true, end_time: true } } }
     });
 
     const result = faculty.map(f => {
@@ -70,9 +76,12 @@ export async function getFacultyWorkload(req, res) {
 
 export async function getRoomUtilization(req, res) {
   try {
+    const { semester_id } = req.query;
+    const slotWhere = semester_id ? { semester_id: Number(semester_id) } : {};
+
     const [rooms, slots] = await Promise.all([
       prisma.room.findMany({ select: { id: true, name: true, capacity: true } }),
-      prisma.timetableSlot.findMany({ select: { room: true, start_time: true, end_time: true } })
+      prisma.timetableSlot.findMany({ where: slotWhere, select: { room: true, start_time: true, end_time: true } })
     ]);
 
     const bookedMap = {};
@@ -96,7 +105,10 @@ export async function getRoomUtilization(req, res) {
 
 export async function getDailyDistribution(req, res) {
   try {
-    const slots = await prisma.timetableSlot.findMany({ select: { day: true } });
+    const { semester_id } = req.query;
+    const slotWhere = semester_id ? { semester_id: Number(semester_id) } : {};
+
+    const slots = await prisma.timetableSlot.findMany({ where: slotWhere, select: { day: true } });
 
     const counted = {};
     for (const s of slots) counted[s.day] = (counted[s.day] || 0) + 1;
@@ -113,7 +125,10 @@ export async function getDailyDistribution(req, res) {
 
 export async function getTimeDistribution(req, res) {
   try {
-    const slots = await prisma.timetableSlot.findMany({ select: { start_time: true } });
+    const { semester_id } = req.query;
+    const slotWhere = semester_id ? { semester_id: Number(semester_id) } : {};
+
+    const slots = await prisma.timetableSlot.findMany({ where: slotWhere, select: { start_time: true } });
 
     const periods = ['Morning (8-12)', 'Afternoon (12-16)', 'Evening (16-20)'];
     const counted = {};

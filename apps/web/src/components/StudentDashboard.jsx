@@ -42,7 +42,7 @@ export default function StudentDashboard() {
                     <div className="slot-course-code">{slot.course_code}</div>
                     <div className="slot-course-name">{slot.course_name}</div>
                     <div className="slot-details">
-                      <div className="slot-time">{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</div>
+                      <div className="slot-time">{slot.start_time?.slice(0,5)} – {slot.end_time?.slice(0,5)}</div>
                       <div className="slot-room">{slot.room}</div>
                       <div className="slot-faculty">{slot.faculty_name}</div>
                     </div>

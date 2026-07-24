@@ -75,6 +75,7 @@ function SlotContent({ slot, color }) {
       <div className="cal-slot-name">{slot.course_name}</div>
       <div className="cal-slot-meta">
         <span>{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</span>
+        {slot.class_name && <span>🏫 {slot.class_name}</span>}
         {slot.room && <span>{slot.room}</span>}
         {slot.faculty_name && <span>{slot.faculty_name}</span>}
       </div>

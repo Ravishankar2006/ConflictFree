@@ -9,6 +9,7 @@ export const setAvailabilitySchema = z.object({
   day: z.enum(days),
   start_time: z.string().regex(timeRegex, 'start_time must be in HH:mm format'),
   end_time: z.string().regex(timeRegex, 'end_time must be in HH:mm format'),
+  semester_id: z.number().int().positive().optional().nullable(),
 }).refine(data => data.end_time > data.start_time, {
   message: 'end_time must be after start_time',
   path: ['end_time'],

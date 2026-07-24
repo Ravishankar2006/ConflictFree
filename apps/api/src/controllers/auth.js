@@ -87,11 +87,14 @@ export async function login(req, res) {
 
 export async function listUsers(req, res) {
   try {
-    const { role } = req.validatedQuery || req.query;
+    const { role, department_id } = req.validatedQuery || req.query;
 
     const where = {};
     if (role) {
       where.role = role;
+    }
+    if (department_id) {
+      where.department_id = Number(department_id);
     }
 
     const rows = await prisma.user.findMany({
@@ -109,7 +112,7 @@ export async function listUsers(req, res) {
 
 export async function deleteUser(req, res) {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) {

@@ -1,14 +1,3 @@
-/**
- * Seed script — populates the DB with sample data for development.
- * Usage: npm run seed
- *
- * Creates:
- *  - 1 admin, 3 faculty, 5 students
- *  - 5 courses
- *  - 8 timetable slots
- *  - Enrollments for all students
- */
-
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
@@ -24,146 +13,240 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
 });
 
+const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+
 async function seed() {
-  console.log('🌱 Starting database seed…\n');
+  console.log('🌱 Starting database seed with Class-wise Home Rooms & Labs…\n');
 
-  const hash = async (pw) => bcrypt.hash(pw, 10);
+  const hash = (pw) => bcrypt.hash(pw, 10);
 
-  // ─── Users ───────────────────────────────────────────────
-  const users = [
-    { name: 'Admin User',      email: 'admin@school.com',    password: 'Admin@123',    role: 'admin'   },
-    { name: 'Dr. Anika Rao',   email: 'anika@school.com',    password: 'Faculty@123',  role: 'faculty' },
-    { name: 'Prof. Kiran Lal', email: 'kiran@school.com',    password: 'Faculty@123',  role: 'faculty' },
-    { name: 'Dr. Suresh Nair', email: 'suresh@school.com',   password: 'Faculty@123',  role: 'faculty' },
-    { name: 'Alice Johnson',   email: 'alice@student.com',   password: 'Student@123',  role: 'student' },
-    { name: 'Bob Mehta',       email: 'bob@student.com',     password: 'Student@123',  role: 'student' },
-    { name: 'Carol Das',       email: 'carol@student.com',   password: 'Student@123',  role: 'student' },
-    { name: 'David Thomas',    email: 'david@student.com',   password: 'Student@123',  role: 'student' },
-    { name: 'Eva Sharma',      email: 'eva@student.com',     password: 'Student@123',  role: 'student' },
+  // ─── Departments ───────────────────────────────────────────
+  const departments = [
+    { name: 'Computer Science & Engineering',          code: 'CSE' },
+    { name: 'Artificial Intelligence & Machine Learning', code: 'AIML' },
+    { name: 'Mechanical Engineering',                  code: 'MECH' },
   ];
 
-  console.log('👤 Creating users…');
+  console.log('🏛️ Creating departments…');
+  const deptIds = {};
+  for (const d of departments) {
+    const [res] = await pool.query(
+      'INSERT IGNORE INTO departments (name, code) VALUES (?, ?)',
+      [d.name, d.code]
+    );
+    if (res.insertId) {
+      deptIds[d.code] = res.insertId;
+      console.log(`   ✅ ${d.name} (${d.code})`);
+    } else {
+      const [[row]] = await pool.query('SELECT id FROM departments WHERE code = ?', [d.code]);
+      deptIds[d.code] = row.id;
+      console.log(`   ⏭️  ${d.name} already exists — skipped`);
+    }
+  }
+
+  const cseId   = deptIds['CSE'];
+  const aimlId  = deptIds['AIML'];
+  const mechId  = deptIds['MECH'];
+
+  // ─── Semester ─────────────────────────────────────────────
+  console.log('\n📅 Creating semester…');
+  let semesterId;
+  const [semRes] = await pool.query(
+    `INSERT IGNORE INTO semesters (name, academic_year, term, start_date, end_date, is_active)
+     VALUES ('Fall 2026', '2026/2027', 'FALL', '2026-09-01', '2027-01-15', TRUE)`
+  );
+  if (semRes.insertId) {
+    semesterId = semRes.insertId;
+    console.log(`   ✅ Fall 2026 (ID: ${semesterId})`);
+  } else {
+    const [[row]] = await pool.query('SELECT id FROM semesters WHERE name = ?', ['Fall 2026']);
+    semesterId = row.id;
+    console.log(`   ⏭️  Fall 2026 already exists — skipped`);
+  }
+
+  // ─── Rooms (Home Classrooms & Labs) ────────────────────────
+  const roomData = [
+    // Lecture Classrooms (is_lab = false)
+    { name: 'CSE A Room',       capacity: 40, is_lab: false },
+    { name: 'CSE B Room',       capacity: 40, is_lab: false },
+    { name: 'AIML A Room',      capacity: 40, is_lab: false },
+    { name: 'AIML B Room',      capacity: 40, is_lab: false },
+    { name: 'MECH A Room',      capacity: 40, is_lab: false },
+    { name: 'MECH B Room',      capacity: 40, is_lab: false },
+    // Lab Venues (is_lab = true)
+    { name: 'Lab-101',          capacity: 30, is_lab: true },
+    { name: 'Lab-102',          capacity: 30, is_lab: true },
+    { name: 'Lab-201',          capacity: 30, is_lab: true },
+    { name: 'Lab-202',          capacity: 30, is_lab: true },
+  ];
+
+  console.log('\n🏛️ Creating rooms (Classrooms & Labs)…');
+  const roomIds = {};
+  for (const r of roomData) {
+    const [res] = await pool.query(
+      'INSERT INTO rooms (name, capacity, is_lab) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE capacity = VALUES(capacity), is_lab = VALUES(is_lab)',
+      [r.name, r.capacity, r.is_lab]
+    );
+    if (res.insertId) {
+      roomIds[r.name] = res.insertId;
+      console.log(`   ✅ ${r.name} (Capacity: ${r.capacity}, Lab: ${r.is_lab})`);
+    } else {
+      const [[row]] = await pool.query('SELECT id FROM rooms WHERE name = ?', [r.name]);
+      roomIds[r.name] = row.id;
+      console.log(`   ⏭️  ${r.name} already exists — updated / skipped`);
+    }
+  }
+
+  // ─── Classes (Sections/Cohorts) ───────────────────────────
+  const classData = [
+    { name: 'CSE A',  deptId: cseId,  homeRoom: 'CSE A Room' },
+    { name: 'CSE B',  deptId: cseId,  homeRoom: 'CSE B Room' },
+    { name: 'AIML A', deptId: aimlId, homeRoom: 'AIML A Room' },
+    { name: 'AIML B', deptId: aimlId, homeRoom: 'AIML B Room' },
+    { name: 'MECH A', deptId: mechId, homeRoom: 'MECH A Room' },
+    { name: 'MECH B', deptId: mechId, homeRoom: 'MECH B Room' },
+  ];
+
+  console.log('\n👥 Creating classes…');
+  const classIds = {};
+  for (const cl of classData) {
+    const homeRoomId = roomIds[cl.homeRoom];
+    const [res] = await pool.query(
+      'INSERT INTO classes (name, department_id, home_room_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE home_room_id = VALUES(home_room_id)',
+      [cl.name, cl.deptId, homeRoomId]
+    );
+    if (res.insertId) {
+      classIds[cl.name] = res.insertId;
+      console.log(`   ✅ Class: ${cl.name} (Home: ${cl.homeRoom})`);
+    } else {
+      const [[row]] = await pool.query('SELECT id FROM classes WHERE name = ?', [cl.name]);
+      classIds[cl.name] = row.id;
+      console.log(`   ⏭️  Class ${cl.name} already exists — skipped`);
+    }
+  }
+
+  const cseAId  = classIds['CSE A'];
+  const cseBId  = classIds['CSE B'];
+  const aimlAId = classIds['AIML A'];
+  const aimlBId = classIds['AIML B'];
+  const mechAId = classIds['MECH A'];
+  const mechBId = classIds['MECH B'];
+
+  // ─── Users (With Class IDs for students) ───────────────────
+  const users = [
+    // Admin
+    { name: 'Admin User',        email: 'admin@school.com',  password: 'Admin@123',  role: 'admin',   dept: null, classId: null },
+
+    // CSE Faculty
+    { name: 'Dr. Priya Sharma',  email: 'priya@school.com',  password: 'Faculty@123', role: 'faculty', dept: cseId, classId: null },
+    { name: 'Prof. Ravi Verma',  email: 'ravi@school.com',   password: 'Faculty@123', role: 'faculty', dept: cseId, classId: null },
+
+    // AIML Faculty
+    { name: 'Dr. Neha Gupta',    email: 'neha@school.com',   password: 'Faculty@123', role: 'faculty', dept: aimlId, classId: null },
+    { name: 'Prof. Arjun Singh', email: 'arjun@school.com',  password: 'Faculty@123', role: 'faculty', dept: aimlId, classId: null },
+
+    // MECH Faculty
+    { name: 'Dr. Vikram Patel',  email: 'vikram@school.com', password: 'Faculty@123', role: 'faculty', dept: mechId, classId: null },
+    { name: 'Prof. Sunita Joshi',email: 'sunita@school.com', password: 'Faculty@123', role: 'faculty', dept: mechId, classId: null },
+
+    // CSE Students (divided A and B)
+    { name: 'Alice Johnson',     email: 'alice@student.com',  password: 'Student@123', role: 'student', dept: cseId, classId: cseAId },
+    { name: 'Bob Mehta',         email: 'bob@student.com',    password: 'Student@123', role: 'student', dept: cseId, classId: cseAId },
+    { name: 'Eva Sharma',        email: 'eva@student.com',    password: 'Student@123', role: 'student', dept: cseId, classId: cseAId },
+    { name: 'Rohan Das',         email: 'rohan@student.com',  password: 'Student@123', role: 'student', dept: cseId, classId: cseBId },
+    { name: 'Sneha Kapoor',      email: 'sneha@student.com',  password: 'Student@123', role: 'student', dept: cseId, classId: cseBId },
+
+    // AIML Students (divided A and B)
+    { name: 'Carol Das',         email: 'carol@student.com',  password: 'Student@123', role: 'student', dept: aimlId, classId: aimlAId },
+    { name: 'Farhan Khan',       email: 'farhan@student.com', password: 'Student@123', role: 'student', dept: aimlId, classId: aimlAId },
+    { name: 'Gauri Nair',        email: 'gauri@student.com',  password: 'Student@123', role: 'student', dept: aimlId, classId: aimlAId },
+    { name: 'Harsh Mehta',       email: 'harsh@student.com',  password: 'Student@123', role: 'student', dept: aimlId, classId: aimlBId },
+    { name: 'Isha Patel',        email: 'isha@student.com',   password: 'Student@123', role: 'student', dept: aimlId, classId: aimlBId },
+
+    // MECH Students (divided A and B)
+    { name: 'David Thomas',      email: 'david@student.com',  password: 'Student@123', role: 'student', dept: mechId, classId: mechAId },
+    { name: 'Jatin Singh',       email: 'jatin@student.com',  password: 'Student@123', role: 'student', dept: mechId, classId: mechAId },
+    { name: 'Kavya Reddy',       email: 'kavya@student.com',  password: 'Student@123', role: 'student', dept: mechId, classId: mechAId },
+    { name: 'Lakshmi Iyer',      email: 'lakshmi@student.com',password: 'Student@123', role: 'student', dept: mechId, classId: mechBId },
+    { name: 'Manav Joshi',       email: 'manav@student.com',  password: 'Student@123', role: 'student', dept: mechId, classId: mechBId },
+  ];
+
+  console.log('\n👤 Creating/updating users…');
   const userIds = {};
   for (const u of users) {
     const [res] = await pool.query(
-      'INSERT IGNORE INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-      [u.name, u.email, await hash(u.password), u.role]
+      'INSERT INTO users (name, email, password_hash, role, department_id, class_id) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE department_id = VALUES(department_id), class_id = VALUES(class_id)',
+      [u.name, u.email, await hash(u.password), u.role, u.dept, u.classId]
     );
     if (res.insertId) {
       userIds[u.email] = res.insertId;
-      console.log(`   ✅ ${u.role.padEnd(8)} ${u.name} (${u.email})`);
+      console.log(`   ✅ ${u.role.padEnd(8)} ${u.name} (${u.email}) — Class: ${u.classId || 'None'}`);
     } else {
-      // Already exists — look up ID
       const [[row]] = await pool.query('SELECT id FROM users WHERE email = ?', [u.email]);
       userIds[u.email] = row.id;
-      console.log(`   ⏭️  ${u.name} already exists — skipped`);
+      console.log(`   ⏭️  ${u.name} already exists — updated class`);
     }
   }
 
-  // ─── Courses ─────────────────────────────────────────────
+  // ─── Courses (5 per dept = 15; Labs marked with is_lab=true) ───
   const courses = [
-    { code: 'CS101', name: 'Introduction to Programming' },
-    { code: 'CS201', name: 'Data Structures & Algorithms' },
-    { code: 'CS301', name: 'Database Management Systems' },
-    { code: 'CS401', name: 'Computer Networks' },
-    { code: 'CS501', name: 'Machine Learning Fundamentals' },
+    // CSE (2 labs, 3 lectures)
+    { code: 'CSE101', name: 'Introduction to Programming',           dept: cseId, is_lab: false },
+    { code: 'CSE201', name: 'Data Structures & Algorithms Lab',       dept: cseId, is_lab: true },
+    { code: 'CSE301', name: 'Database Management Systems',           dept: cseId, is_lab: false },
+    { code: 'CSE401', name: 'Computer Networks',                     dept: cseId, is_lab: false },
+    { code: 'CSE501', name: 'Operating Systems Lab',                 dept: cseId, is_lab: true },
+    // AIML (2 labs, 3 lectures)
+    { code: 'AIML101', name: 'Introduction to Artificial Intelligence', dept: aimlId, is_lab: false },
+    { code: 'AIML201', name: 'Machine Learning',                     dept: aimlId, is_lab: false },
+    { code: 'AIML301', name: 'Deep Learning Lab',                    dept: aimlId, is_lab: true },
+    { code: 'AIML401', name: 'Natural Language Processing',          dept: aimlId, is_lab: false },
+    { code: 'AIML501', name: 'Computer Vision Lab',                  dept: aimlId, is_lab: true },
+    // MECH (2 labs, 3 lectures)
+    { code: 'MECH101', name: 'Engineering Mechanics',                dept: mechId, is_lab: false },
+    { code: 'MECH201', name: 'Thermodynamics',                       dept: mechId, is_lab: false },
+    { code: 'MECH301', name: 'Fluid Mechanics Lab',                  dept: mechId, is_lab: true },
+    { code: 'MECH401', name: 'CAD / CAM',                            dept: mechId, is_lab: false },
+    { code: 'MECH501', name: 'Robotics Lab',                         dept: mechId, is_lab: true },
   ];
 
-  console.log('\n📚 Creating courses…');
+  console.log('\n📚 Creating/updating courses…');
   const courseIds = {};
   for (const c of courses) {
     const [res] = await pool.query(
-      'INSERT IGNORE INTO courses (name, code) VALUES (?, ?)',
-      [c.name, c.code]
+      'INSERT INTO courses (name, code, department_id, semester_id, is_lab) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE department_id = VALUES(department_id), semester_id = VALUES(semester_id), is_lab = VALUES(is_lab)',
+      [c.name, c.code, c.dept, semesterId, c.is_lab]
     );
     if (res.insertId) {
       courseIds[c.code] = res.insertId;
-      console.log(`   ✅ ${c.code} — ${c.name}`);
+      console.log(`   ✅ ${c.code} — ${c.name} (Lab: ${c.is_lab})`);
     } else {
       const [[row]] = await pool.query('SELECT id FROM courses WHERE code = ?', [c.code]);
       courseIds[c.code] = row.id;
-      console.log(`   ⏭️  ${c.code} already exists — skipped`);
+      console.log(`   ⏭️  ${c.code} already exists — updated / skipped`);
     }
-  }
-
-  // ─── Timetable Slots ─────────────────────────────────────
-  const f1 = userIds['anika@school.com'];
-  const f2 = userIds['kiran@school.com'];
-  const f3 = userIds['suresh@school.com'];
-
-  const slots = [
-    { course: 'CS101', faculty: f1, room: 'Hall-A',  day: 'MON', start: '09:00', end: '10:30' },
-    { course: 'CS201', faculty: f2, room: 'Lab-101',  day: 'MON', start: '11:00', end: '12:30' },
-    { course: 'CS301', faculty: f3, room: 'Hall-B',  day: 'TUE', start: '09:00', end: '10:30' },
-    { course: 'CS401', faculty: f1, room: 'Lab-102',  day: 'TUE', start: '14:00', end: '15:30' },
-    { course: 'CS501', faculty: f2, room: 'Hall-C',  day: 'WED', start: '10:00', end: '11:30' },
-    { course: 'CS101', faculty: f1, room: 'Hall-A',  day: 'WED', start: '13:00', end: '14:30' },
-    { course: 'CS201', faculty: f2, room: 'Lab-101',  day: 'THU', start: '09:00', end: '10:30' },
-    { course: 'CS301', faculty: f3, room: 'Hall-B',  day: 'FRI', start: '11:00', end: '12:30' },
-  ];
-
-  console.log('\n📅 Creating timetable slots…');
-  const slotMap = [];
-  for (const s of slots) {
-    const [res] = await pool.query(
-      'INSERT IGNORE INTO timetable_slots (course_id, faculty_id, room, day, start_time, end_time) VALUES (?,?,?,?,?,?)',
-      [courseIds[s.course], s.faculty, s.room, s.day, s.start, s.end]
-    );
-    if (res.insertId) {
-      slotMap.push({ slotId: res.insertId, courseCode: s.course });
-      console.log(`   ✅ ${s.day} ${s.start}-${s.end} | ${s.course} @ ${s.room}`);
-    } else {
-      console.log(`   ⏭️  Slot already exists — skipped`);
-    }
-  }
-
-  // ─── Rooms ──────────────────────────────────────────────
-  const roomData = [
-    { name: 'Hall-A', capacity: 50 },
-    { name: 'Hall-B', capacity: 40 },
-    { name: 'Hall-C', capacity: 35 },
-    { name: 'Lab-101', capacity: 25 },
-    { name: 'Lab-102', capacity: 25 },
-  ];
-
-  console.log('\n🏛️ Creating rooms…');
-  for (const r of roomData) {
-    const [res] = await pool.query(
-      'INSERT IGNORE INTO rooms (name, capacity) VALUES (?, ?)',
-      [r.name, r.capacity]
-    );
-    if (res.insertId) {
-      console.log(`   ✅ ${r.name} (capacity: ${r.capacity})`);
-    } else {
-      console.log(`   ⏭️  ${r.name} already exists — skipped`);
-    }
-  }
-
-  // ─── Faculty Availability ─────────────────────────────────
-  const facultyEmails = ['anika@school.com', 'kiran@school.com', 'suresh@school.com'];
-  const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
-
-  console.log('\n🕐 Setting faculty availability…');
-  for (const email of facultyEmails) {
-    const fId = userIds[email];
-    if (!fId) continue;
-    for (const day of DAYS) {
-      await pool.query(
-        `INSERT IGNORE INTO faculty_availability (faculty_id, day, start_time, end_time)
-         VALUES (?, ?, '08:00', '17:00')`,
-        [fId, day]
-      );
-    }
-    console.log(`   ✅ ${email.split('@')[0]} — MON-FRI 08:00-17:00`);
   }
 
   // ─── Course-Faculty Assignments ────────────────────────────
   const courseFacultyMap = [
-    { course: 'CS101', faculty: 'anika@school.com' },
-    { course: 'CS201', faculty: 'kiran@school.com' },
-    { course: 'CS301', faculty: 'suresh@school.com' },
-    { course: 'CS401', faculty: 'anika@school.com' },
-    { course: 'CS501', faculty: 'kiran@school.com' },
+    // CSE
+    { course: 'CSE101', faculty: 'priya@school.com' },
+    { course: 'CSE201', faculty: 'ravi@school.com' },
+    { course: 'CSE301', faculty: 'priya@school.com' },
+    { course: 'CSE401', faculty: 'ravi@school.com' },
+    { course: 'CSE501', faculty: 'priya@school.com' },
+    // AIML
+    { course: 'AIML101', faculty: 'neha@school.com' },
+    { course: 'AIML201', faculty: 'arjun@school.com' },
+    { course: 'AIML301', faculty: 'neha@school.com' },
+    { course: 'AIML401', faculty: 'arjun@school.com' },
+    { course: 'AIML501', faculty: 'neha@school.com' },
+    // MECH
+    { course: 'MECH101', faculty: 'vikram@school.com' },
+    { course: 'MECH201', faculty: 'sunita@school.com' },
+    { course: 'MECH301', faculty: 'vikram@school.com' },
+    { course: 'MECH401', faculty: 'sunita@school.com' },
+    { course: 'MECH501', faculty: 'vikram@school.com' },
   ];
 
   console.log('\n👨‍🏫 Assigning faculty to courses…');
@@ -178,27 +261,100 @@ async function seed() {
     console.log(`   ✅ ${cf.course} → ${cf.faculty.split('@')[0]}`);
   }
 
+  // ─── Faculty Availability ─────────────────────────────────
+  const facultyEmails = [
+    'priya@school.com', 'ravi@school.com',
+    'neha@school.com', 'arjun@school.com',
+    'vikram@school.com', 'sunita@school.com',
+  ];
+
+  console.log('\n🕐 Setting faculty availability…');
+  for (const email of facultyEmails) {
+    const fId = userIds[email];
+    if (!fId) continue;
+    for (const day of DAYS) {
+      await pool.query(
+        `INSERT INTO faculty_availability (faculty_id, day, start_time, end_time, semester_id)
+         VALUES (?, ?, '08:00', '17:00', ?) ON DUPLICATE KEY UPDATE semester_id = VALUES(semester_id)`,
+        [fId, day, semesterId]
+      );
+    }
+    console.log(`   ✅ ${email.split('@')[0]} — MON-FRI 08:00-17:00`);
+  }
+
   // ─── Enrollments ─────────────────────────────────────────
-  const studentEmails = ['alice@student.com', 'bob@student.com', 'carol@student.com', 'david@student.com', 'eva@student.com'];
-  const allCourseCodes = Object.keys(courseIds);
+  const studentDeptGroups = {
+    [cseId]:  ['alice@student.com', 'bob@student.com', 'eva@student.com', 'rohan@student.com', 'sneha@student.com'],
+    [aimlId]: ['carol@student.com', 'farhan@student.com', 'gauri@student.com', 'harsh@student.com', 'isha@student.com'],
+    [mechId]: ['david@student.com', 'jatin@student.com', 'kavya@student.com', 'lakshmi@student.com', 'manav@student.com'],
+  };
+
+  const deptCourseCodes = {
+    [cseId]:  ['CSE101', 'CSE201', 'CSE301', 'CSE401', 'CSE501'],
+    [aimlId]: ['AIML101', 'AIML201', 'AIML301', 'AIML401', 'AIML501'],
+    [mechId]: ['MECH101', 'MECH201', 'MECH301', 'MECH401', 'MECH501'],
+  };
 
   console.log('\n👥 Creating enrollments…');
-  for (const email of studentEmails) {
-    for (const code of allCourseCodes) {
-      const [res] = await pool.query(
-        'INSERT IGNORE INTO enrollments (student_id, course_id) VALUES (?,?)',
-        [userIds[email], courseIds[code]]
-      );
-      if (res.insertId) {
-        console.log(`   ✅ ${email.split('@')[0]} → ${code}`);
+  for (const [deptId, emails] of Object.entries(studentDeptGroups)) {
+    const codes = deptCourseCodes[deptId];
+    for (const email of emails) {
+      for (const code of codes) {
+        await pool.query(
+          'INSERT INTO enrollments (student_id, course_id, semester_id) VALUES (?,?,?) ON DUPLICATE KEY UPDATE semester_id = VALUES(semester_id)',
+          [userIds[email], courseIds[code], semesterId]
+        );
       }
     }
+    console.log(`   ✅ Enrollments seeded for ${emails.length} students in Department ID ${deptId}`);
+  }
+
+  // ─── Timetable Slots (Now with class_id and home rooms vs labs) ──
+  const priya  = userIds['priya@school.com'];
+  const ravi   = userIds['ravi@school.com'];
+  const neha   = userIds['neha@school.com'];
+  const arjun  = userIds['arjun@school.com'];
+  const vikram = userIds['vikram@school.com'];
+  const sunita = userIds['sunita@school.com'];
+
+  const slots = [
+    // CSE A Slots (Lectures in CSE A Room, Labs in Lab venues)
+    { course: 'CSE101', classId: cseAId, faculty: priya,  room: 'CSE A Room', day: 'MON', start: '09:00', end: '10:30' },
+    { course: 'CSE201', classId: cseAId, faculty: ravi,   room: 'Lab-101',    day: 'MON', start: '11:00', end: '12:30' }, // DS Lab
+    { course: 'CSE301', classId: cseAId, faculty: priya,  room: 'CSE A Room', day: 'TUE', start: '09:00', end: '10:30' },
+
+    // CSE B Slots (Lectures in CSE B Room, Labs in Lab venues)
+    { course: 'CSE101', classId: cseBId, faculty: priya,  room: 'CSE B Room', day: 'MON', start: '11:00', end: '12:30' },
+    { course: 'CSE501', classId: cseBId, faculty: priya,  room: 'Lab-101',    day: 'TUE', start: '11:00', end: '12:30' }, // OS Lab
+
+    // AIML A Slots (Lectures in AIML A Room, Labs in Lab venues)
+    { course: 'AIML101', classId: aimlAId, faculty: neha,  room: 'AIML A Room',day: 'TUE', start: '14:00', end: '15:30' },
+    { course: 'AIML301', classId: aimlAId, faculty: neha,  room: 'Lab-102',    day: 'THU', start: '09:00', end: '10:30' }, // DL Lab
+
+    // MECH A Slots (Lectures in MECH A Room, Labs in Lab venues)
+    { course: 'MECH101', classId: mechAId, faculty: vikram,room: 'MECH A Room',day: 'WED', start: '10:00', end: '11:30' },
+    { course: 'MECH301', classId: mechAId, faculty: vikram,room: 'Lab-202',    day: 'THU', start: '14:00', end: '15:30' }, // Fluid Lab
+  ];
+
+  console.log('\n📅 Deleting existing timetable slots before seed…');
+  await pool.query('DELETE FROM timetable_slots');
+
+  console.log('\n📅 Creating timetable slots…');
+  for (const s of slots) {
+    const cId = courseIds[s.course];
+    if (!cId) continue;
+    await pool.query(
+      'INSERT INTO timetable_slots (course_id, faculty_id, class_id, room, day, start_time, end_time, semester_id) VALUES (?,?,?,?,?,?,?,?)',
+      [cId, s.faculty, s.classId, s.room, s.day, s.start, s.end, semesterId]
+    );
+    console.log(`   ✅ Class ${s.classId}: ${s.day} ${s.start}-${s.end} | ${s.course} @ ${s.room}`);
   }
 
   console.log('\n✅ Seed complete!\n');
   console.log('Login credentials:');
   console.log('  Admin:   admin@school.com   / Admin@123');
-  console.log('  Faculty: anika@school.com   / Faculty@123');
+  console.log('  Faculty: priya@school.com   / Faculty@123');
+  console.log('  Faculty: ravi@school.com    / Faculty@123');
   console.log('  Student: alice@student.com  / Student@123\n');
 
   await pool.end();

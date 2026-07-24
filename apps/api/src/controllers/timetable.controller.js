@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { toTimeStr, toTimeShort, timeToDate } from '../utils/time.js';
-import { detectConflicts } from '../utils/conflict-detector.js';
+import { detectConflicts, detectStudentConflicts } from '../utils/conflict-detector.js';
 
 const DAY_ORDER = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5 };
 
@@ -15,13 +15,39 @@ function formatSlots(rows) {
     end_time: toTimeStr(r.end_time),
     course_name: r.course?.name,
     course_code: r.course?.code,
-    faculty_name: r.faculty?.name
+    faculty_name: r.faculty?.name,
+    class_name: r.class?.name
   }));
 }
 
 export async function createSlot(req, res) {
   try {
-    const { course_id, room, faculty_id, day, start_time, end_time } = req.body;
+    const { course_id, class_id, room, faculty_id, day, start_time, end_time, semester_id } = req.body;
+
+    const [course, roomRec, classRec] = await Promise.all([
+      prisma.course.findUnique({ where: { id: course_id }, select: { is_lab: true } }),
+      prisma.room.findUnique({ where: { name: room }, select: { is_lab: true } }),
+      class_id ? prisma.class.findUnique({ where: { id: class_id }, select: { home_room_id: true } }) : null
+    ]);
+
+    if (!course || !roomRec) {
+      return res.status(400).json({ message: 'Invalid course or room' });
+    }
+
+    if (course.is_lab && !roomRec.is_lab) {
+      return res.status(400).json({ message: 'Lab courses must be scheduled in a lab room' });
+    }
+
+    if (!course.is_lab && roomRec.is_lab) {
+      return res.status(400).json({ message: 'Regular courses cannot be scheduled in a lab room' });
+    }
+
+    if (!course.is_lab && class_id && classRec) {
+      const homeRoom = await prisma.room.findUnique({ where: { id: classRec.home_room_id } });
+      if (homeRoom && room !== homeRoom.name) {
+        return res.status(400).json({ message: `Lecture courses must use the class's home room (${homeRoom.name})` });
+      }
+    }
 
     const conflicts = await detectConflicts({
       day, start_time, end_time, room, faculty_id
@@ -40,11 +66,27 @@ export async function createSlot(req, res) {
       });
     }
 
+    const studentConflicts = await detectStudentConflicts({
+      day, start_time, end_time, course_id, class_id
+    });
+
+    if (studentConflicts.length > 0) {
+      return res.status(409).json({
+        message: 'Cannot create slot: Student/Class conflict detected',
+        conflicts: studentConflicts.map(c => ({
+          id: c.id,
+          time: `${toTimeShort(c.start_time)} - ${toTimeShort(c.end_time)}`,
+          course_code: c.course_code
+        }))
+      });
+    }
+
     const result = await prisma.timetableSlot.create({
       data: {
-        course_id, room, faculty_id, day,
+        course_id, class_id: class_id ?? null, room, faculty_id, day,
         start_time: timeToDate(start_time),
-        end_time: timeToDate(end_time)
+        end_time: timeToDate(end_time),
+        semester_id: semester_id ?? null
       }
     });
 
@@ -65,31 +107,41 @@ export async function getMyTimetable(req, res) {
   try {
     const userId = req.user.id;
     const role = req.user.role;
+    const { semester_id, department_id } = req.query;
 
     let rows;
+
+    const slotWhere = {};
+    if (semester_id) slotWhere.semester_id = Number(semester_id);
+    if (department_id) slotWhere.course = { department_id: Number(department_id) };
 
     if (role === 'student') {
       rows = await prisma.timetableSlot.findMany({
         where: {
+          ...slotWhere,
           course: { enrollments: { some: { student_id: userId } } }
         },
         include: {
           course: { select: { name: true, code: true } },
-          faculty: { select: { name: true } }
+          faculty: { select: { name: true } },
+          class: { select: { name: true } }
         }
       });
     } else if (role === 'faculty') {
       rows = await prisma.timetableSlot.findMany({
-        where: { faculty_id: userId },
+        where: { faculty_id: userId, ...slotWhere },
         include: {
-          course: { select: { name: true, code: true } }
+          course: { select: { name: true, code: true } },
+          class: { select: { name: true } }
         }
       });
     } else {
       rows = await prisma.timetableSlot.findMany({
+        where: slotWhere,
         include: {
           course: { select: { name: true, code: true } },
-          faculty: { select: { name: true } }
+          faculty: { select: { name: true } },
+          class: { select: { name: true } }
         }
       });
     }
@@ -103,10 +155,17 @@ export async function getMyTimetable(req, res) {
 
 export async function getAllSlots(req, res) {
   try {
+    const { semester_id, department_id } = req.query;
+    const where = {};
+    if (semester_id) where.semester_id = Number(semester_id);
+    if (department_id) where.course = { department_id: Number(department_id) };
+
     const rows = await prisma.timetableSlot.findMany({
+      where,
       include: {
         course: { select: { name: true, code: true } },
-        faculty: { select: { name: true } }
+        faculty: { select: { name: true } },
+        class: { select: { name: true } }
       }
     });
 
@@ -119,8 +178,8 @@ export async function getAllSlots(req, res) {
 
 export async function deleteSlot(req, res) {
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
+    const id = Number(req.params.id);
+    const userId = Number(req.user.id);
     const userRole = req.user.role;
 
     const slot = await prisma.timetableSlot.findUnique({ where: { id } });
@@ -143,23 +202,48 @@ export async function deleteSlot(req, res) {
 
 export async function updateSlot(req, res) {
   try {
-    const { id } = req.params;
-    const { course_id, room, faculty_id, day, start_time, end_time } = req.body;
+    const id = Number(req.params.id);
+    const { course_id, class_id, room, faculty_id, day, start_time, end_time, semester_id } = req.body;
 
     const existing = await prisma.timetableSlot.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Slot not found' });
     }
 
+    const [course, roomRec, classRec] = await Promise.all([
+      prisma.course.findUnique({ where: { id: Number(course_id) }, select: { is_lab: true } }),
+      prisma.room.findUnique({ where: { name: room }, select: { is_lab: true } }),
+      class_id ? prisma.class.findUnique({ where: { id: Number(class_id) }, select: { home_room_id: true } }) : null
+    ]);
+
+    if (!course || !roomRec) {
+      return res.status(400).json({ message: 'Invalid course or room' });
+    }
+
+    if (course.is_lab && !roomRec.is_lab) {
+      return res.status(400).json({ message: 'Lab courses must be scheduled in a lab room' });
+    }
+
+    if (!course.is_lab && roomRec.is_lab) {
+      return res.status(400).json({ message: 'Regular courses cannot be scheduled in a lab room' });
+    }
+
+    if (!course.is_lab && class_id && classRec) {
+      const homeRoom = await prisma.room.findUnique({ where: { id: classRec.home_room_id } });
+      if (homeRoom && room !== homeRoom.name) {
+        return res.status(400).json({ message: `Lecture courses must use the class's home room (${homeRoom.name})` });
+      }
+    }
+
     const [conflicts, existingSlots] = await Promise.all([
       detectConflicts({
-        day, start_time, end_time, room, faculty_id,
+        day, start_time, end_time, room, faculty_id: Number(faculty_id),
         excludeId: id
       }),
       prisma.timetableSlot.findMany({
         where: {
           id: { not: id },
-          course_id, faculty_id, day
+          course_id: Number(course_id), faculty_id: Number(faculty_id), day
         },
         select: { id: true, start_time: true }
       })
@@ -186,12 +270,28 @@ export async function updateSlot(req, res) {
       });
     }
 
+    const studentConflicts = await detectStudentConflicts({
+      day, start_time, end_time, course_id: Number(course_id), class_id: class_id ? Number(class_id) : undefined, excludeSlotId: id
+    });
+
+    if (studentConflicts.length > 0) {
+      return res.status(409).json({
+        message: 'Cannot update slot: Student/Class conflict detected',
+        conflicts: studentConflicts.map(c => ({
+          id: c.id,
+          time: `${toTimeShort(c.start_time)} - ${toTimeShort(c.end_time)}`,
+          course_code: c.course_code
+        }))
+      });
+    }
+
     await prisma.timetableSlot.update({
       where: { id },
       data: {
-        course_id, room, faculty_id, day,
+        course_id: Number(course_id), class_id: class_id ? Number(class_id) : null, room, faculty_id: Number(faculty_id), day,
         start_time: timeToDate(start_time),
-        end_time: timeToDate(end_time)
+        end_time: timeToDate(end_time),
+        semester_id: semester_id ? Number(semester_id) : null
       }
     });
 
@@ -227,12 +327,18 @@ export async function exportIcal(req, res) {
   try {
     const userId = req.user.id;
     const role = req.user.role;
+    const { semester_id, department_id } = req.query;
 
     let rows;
+
+    const slotWhere = {};
+    if (semester_id) slotWhere.semester_id = Number(semester_id);
+    if (department_id) slotWhere.course = { department_id: Number(department_id) };
 
     if (role === 'student') {
       rows = await prisma.timetableSlot.findMany({
         where: {
+          ...slotWhere,
           course: { enrollments: { some: { student_id: userId } } }
         },
         include: {
@@ -242,13 +348,14 @@ export async function exportIcal(req, res) {
       });
     } else if (role === 'faculty') {
       rows = await prisma.timetableSlot.findMany({
-        where: { faculty_id: userId },
+        where: { faculty_id: userId, ...slotWhere },
         include: {
           course: { select: { name: true, code: true } }
         }
       });
     } else {
       rows = await prisma.timetableSlot.findMany({
+        where: slotWhere,
         include: {
           course: { select: { name: true, code: true } },
           faculty: { select: { name: true } }

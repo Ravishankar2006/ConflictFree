@@ -32,7 +32,7 @@ function ScheduleView({ timetable, viewMode, setViewMode }) {
                   <div className="slot-course-code">{slot.course_code}</div>
                   <div className="slot-course-name">{slot.course_name}</div>
                   <div className="slot-details">
-                    <div className="slot-time">{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</div>
+                    <div className="slot-time">{slot.start_time?.slice(0,5)} – {slot.end_time?.slice(0,5)}</div>
                     <div className="slot-room">{slot.room}</div>
                   </div>
                 </div>
@@ -63,8 +63,8 @@ function AvailabilityPlanner({ toast }) {
       for (const row of res.data) {
         s[row.day] = {
           enabled: true,
-          start: row.start_time.slice(0, 5),
-          end: row.end_time.slice(0, 5),
+          start: row.start_time?.slice(0, 5) || '08:00',
+          end: row.end_time?.slice(0, 5) || '17:00',
         };
       }
       setSchedule(s);
@@ -222,7 +222,7 @@ export default function FacultyDashboard() {
           <ul className="violation-list">
             {violations.map((v, i) => (
               <li key={i}>
-                <strong>{v.course_code}</strong> — {v.day} {v.start_time.slice(0,5)}–{v.end_time.slice(0,5)}
+                <strong>{v.course_code}</strong> — {v.day} {v.start_time?.slice(0,5)}–{v.end_time?.slice(0,5)}
                 <br />
                 <span className="violation-hint">Update your availability or contact admin to resolve.</span>
               </li>

@@ -2,7 +2,12 @@ import prisma from '../config/prisma.js';
 
 export async function listEnrollments(req, res) {
   try {
+    const { semester_id } = req.query;
+    const where = {};
+    if (semester_id) where.semester_id = Number(semester_id);
+
     const rows = await prisma.enrollment.findMany({
+      where,
       include: {
         student: { select: { name: true, email: true } },
         course: { select: { code: true, name: true } }
@@ -14,6 +19,7 @@ export async function listEnrollments(req, res) {
       id: e.id,
       student_id: e.student_id,
       course_id: e.course_id,
+      semester_id: e.semester_id,
       student_name: e.student.name,
       student_email: e.student.email,
       course_code: e.course.code,
@@ -31,7 +37,7 @@ export async function listEnrollments(req, res) {
 
 export async function createEnrollment(req, res) {
   try {
-    const { student_id, course_id } = req.body;
+    const { student_id, course_id, semester_id } = req.body;
 
     const student = await prisma.user.findUnique({ where: { id: student_id } });
     if (!student || student.role !== 'student') {
@@ -44,7 +50,7 @@ export async function createEnrollment(req, res) {
     }
 
     const result = await prisma.enrollment.create({
-      data: { student_id, course_id }
+      data: { student_id, course_id, semester_id: semester_id ?? null }
     });
 
     res.status(201).json({
@@ -62,7 +68,7 @@ export async function createEnrollment(req, res) {
 
 export async function deleteEnrollment(req, res) {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
     const existing = await prisma.enrollment.findUnique({ where: { id } });
     if (!existing) {

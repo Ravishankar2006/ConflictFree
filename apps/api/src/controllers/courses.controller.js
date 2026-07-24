@@ -2,8 +2,14 @@ import prisma from '../config/prisma.js';
 
 export async function listCourses(req, res) {
   try {
+    const { department_id, semester_id } = req.query;
+    const where = {};
+    if (department_id) where.department_id = Number(department_id);
+    if (semester_id) where.semester_id = Number(semester_id);
+
     const rows = await prisma.course.findMany({
-      select: { id: true, name: true, code: true },
+      where,
+      select: { id: true, name: true, code: true, department_id: true, semester_id: true, is_lab: true },
       orderBy: { code: 'asc' }
     });
     res.json(rows);
@@ -15,10 +21,10 @@ export async function listCourses(req, res) {
 
 export async function createCourse(req, res) {
   try {
-    const { name, code } = req.body;
+    const { name, code, department_id, semester_id, is_lab } = req.body;
 
     const result = await prisma.course.create({
-      data: { name, code: code.toUpperCase() }
+      data: { name, code: code.toUpperCase(), department_id: department_id ?? null, semester_id: semester_id ?? null, is_lab: is_lab ?? false }
     });
 
     res.status(201).json({
@@ -36,7 +42,7 @@ export async function createCourse(req, res) {
 
 export async function deleteCourse(req, res) {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
     const existing = await prisma.course.findUnique({ where: { id } });
     if (!existing) {

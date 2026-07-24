@@ -12,10 +12,10 @@ export async function listRooms(req, res) {
 
 export async function createRoom(req, res) {
   try {
-    const { name, capacity } = req.body;
+    const { name, capacity, is_lab } = req.body;
 
     const result = await prisma.room.create({
-      data: { name, capacity: capacity ?? 30 }
+      data: { name, capacity: capacity ?? 30, is_lab: is_lab ?? false }
     });
 
     res.status(201).json({
@@ -33,7 +33,7 @@ export async function createRoom(req, res) {
 
 export async function deleteRoom(req, res) {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
     const existing = await prisma.room.findUnique({ where: { id } });
     if (!existing) {

@@ -5,7 +5,12 @@ const toTimeShort = (d) => toTimeStr(d).slice(0, 5);
 
 export async function listConflicts(req, res) {
   try {
+    const { semester_id } = req.query;
+    const where = {};
+    if (semester_id) where.semester_id = Number(semester_id);
+
     const slots = await prisma.timetableSlot.findMany({
+      where,
       include: {
         course: { select: { name: true, code: true } },
         faculty: { select: { name: true } }
@@ -75,7 +80,7 @@ export async function listConflicts(req, res) {
 
 export async function resolveConflict(req, res) {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
     const existing = await prisma.timetableSlot.findUnique({ where: { id } });
     if (!existing) {
