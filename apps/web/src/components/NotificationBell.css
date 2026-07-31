@@ -1,74 +1,72 @@
-.bell-wrapper {
-  position: relative;
-}
+/* ── Notification Bell ────────────────────────────── */
+.bell-wrapper { position: relative; }
 
 .bell-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-full, 9999px);
-  width: 2.5rem;
-  height: 2.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  width: 2.125rem;
+  height: 2.125rem;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1rem;
   position: relative;
-  transition: all 0.2s ease;
-  color: var(--text-secondary, #cbd5e1);
+  transition: var(--transition-fast);
+  color: var(--text-secondary);
 }
 
 .bell-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .bell-btn.bell-active {
-  border-color: rgba(251, 113, 133, 0.4);
-  animation: bellRing 1.5s ease-in-out infinite;
+  border-color: rgba(244, 107, 122, 0.4);
+  animation: bellRing 1.6s ease-in-out infinite;
 }
 
 @keyframes bellRing {
   0%, 100% { transform: rotate(0); }
-  10%, 30% { transform: rotate(-8deg); }
-  20%, 40% { transform: rotate(8deg); }
+  10%, 30%  { transform: rotate(-8deg); }
+  20%, 40%  { transform: rotate(8deg); }
   50%       { transform: rotate(0); }
 }
 
 .bell-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  background: var(--accent-red, #fb7185);
-  color: white;
-  font-size: 0.6rem;
+  top: -4px; right: -4px;
+  background: var(--accent-red);
+  color: #fff;
+  font-size: 0.55rem;
   font-weight: 700;
-  border-radius: 9999px;
-  min-width: 1.1rem;
-  height: 1.1rem;
+  border-radius: var(--radius-full);
+  min-width: 1rem;
+  height: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 2px;
 }
 
+/* ── Dropdown ──────────────────────────────────────── */
 .bell-dropdown {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
   width: 320px;
-  background: rgba(19, 19, 31, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-lg, 1rem);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   z-index: 1000;
   overflow: hidden;
-  animation: dropIn 0.2s ease-out;
+  animation: dropIn var(--duration-fast) var(--ease-out);
 }
 
 @keyframes dropIn {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -76,27 +74,28 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 0.9rem;
-  color: var(--text-primary, #f8fafc);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .bell-count-tag {
-  font-size: 0.7rem;
-  background: rgba(251, 113, 133, 0.15);
-  color: var(--accent-red, #fb7185);
-  border: 1px solid rgba(251, 113, 133, 0.3);
-  border-radius: 9999px;
-  padding: 0.15rem 0.5rem;
+  font-size: var(--text-xs);
+  background: var(--accent-red-muted);
+  color: var(--accent-red);
+  border: 1px solid rgba(244, 107, 122, 0.25);
+  border-radius: var(--radius-full);
+  padding: 0.15rem var(--sp-2);
   font-weight: 600;
 }
 
 .bell-empty {
-  padding: 1.5rem;
+  padding: var(--sp-6);
   text-align: center;
-  color: var(--text-muted, #64748b);
-  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 .bell-list {
@@ -110,42 +109,44 @@
 .bell-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 0.8rem;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+  transition: background var(--duration-fast) var(--ease-out);
 }
-
 .bell-item:last-child { border-bottom: none; }
+.bell-item:hover { background: var(--bg-hover); }
 
 .bell-type {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.5px;
-  border-radius: 4px;
-  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--sp-2);
   flex-shrink: 0;
   margin-top: 1px;
+  text-transform: uppercase;
 }
 
-.type-room    { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue, #38bdf8); }
-.type-faculty { background: rgba(192, 132, 252, 0.15); color: var(--accent-purple, #c084fc); }
+.type-room    { background: var(--accent-primary-muted); color: var(--accent-primary); }
+.type-faculty { background: var(--accent-purple-muted);  color: var(--accent-purple); }
 
 .bell-details {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: var(--text-secondary, #cbd5e1);
+  color: var(--text-secondary);
 }
 
 .bell-courses {
-  color: var(--text-muted, #64748b);
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 
 .bell-more {
-  padding: 0.5rem 1rem;
-  color: var(--text-muted, #64748b);
-  font-size: 0.78rem;
+  padding: var(--sp-2) var(--sp-4);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
   text-align: center;
 }

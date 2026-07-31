@@ -1,36 +1,35 @@
+/* ── Analytics Grid ──────────────────────────────── */
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
+  gap: var(--sp-6);
+  margin-top: var(--sp-4);
 }
 
 @media (max-width: 640px) {
-  .analytics-grid {
-    grid-template-columns: 1fr;
-  }
+  .analytics-grid { grid-template-columns: 1fr; }
 }
 
+/* ── Chart Card ──────────────────────────────────── */
 .chart-card {
-  background: rgba(19, 19, 31, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 1rem;
-  padding: 1.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  backdrop-filter: blur(8px);
+  gap: var(--sp-4);
+  transition: box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.chart-card.full-width {
-  grid-column: 1 / -1;
-}
+.chart-card:hover { box-shadow: var(--shadow-md); }
+
+.chart-card.full-width { grid-column: 1 / -1; }
 
 .chart-title {
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   font-weight: 700;
-  color: var(--text-primary, #f8fafc);
-  margin-bottom: 0.25rem;
+  color: var(--text-primary);
 }
 
 .chart-container {
@@ -44,42 +43,42 @@
   align-items: center;
 }
 
-/* ── Custom Tooltip ──────────────────── */
+/* ── Custom Tooltip ──────────────────────────────── */
 .analytics-tooltip {
-  background: #1e1e2f;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 0.75rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  font-size: 0.8rem;
-  color: #f8fafc;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
 }
 
 .tooltip-label {
   font-weight: 700;
-  margin-bottom: 0.25rem;
-  color: #cbd5e1;
+  margin-bottom: var(--sp-1);
+  color: var(--text-secondary);
 }
 
-/* ── Workload Balance Bar ────────────── */
+/* ── Workload Bar ────────────────────────────────── */
 .workload-bar-wrapper {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--sp-3);
   width: 100%;
   max-width: 220px;
 }
 
 .workload-bar-fill {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--accent-blue, #38bdf8);
-  transition: width 0.3s ease;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  transition: width var(--duration-base) var(--ease-out);
 }
 
 .workload-bar-label {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted);
   white-space: nowrap;
 }
