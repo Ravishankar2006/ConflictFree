@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 import './Toast.css';
 
 export function useToast() {
@@ -20,33 +21,36 @@ export function useToast() {
 }
 
 const ICONS = {
-  success: '✅',
-  error:   '❌',
-  warning: '⚠️',
-  info:    'ℹ️',
+  success: CheckCircle2,
+  error:   XCircle,
+  warning: AlertTriangle,
+  info:    Info,
 };
 
 export default function ToastContainer({ toasts, dismiss }) {
   return (
     <div className="toast-container" aria-live="polite">
-      {toasts.map(toast => (
+      {toasts.map(toast => {
+        const Icon = ICONS[toast.type] || ICONS.info;
+        return (
         <div
           key={toast.id}
           className={`toast toast-${toast.type}`}
           onClick={() => dismiss(toast.id)}
           role="alert"
         >
-          <span className="toast-icon">{ICONS[toast.type] || ICONS.info}</span>
+          <span className="toast-icon" aria-hidden="true"><Icon size={16} /></span>
           <span className="toast-message">{toast.message}</span>
           <button
             className="toast-close"
             onClick={(e) => { e.stopPropagation(); dismiss(toast.id); }}
             aria-label="Dismiss"
           >
-            ×
+            <X size={14} />
           </button>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

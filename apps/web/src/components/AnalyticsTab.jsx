@@ -12,6 +12,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { AlertTriangle, Check, RefreshCw } from 'lucide-react';
 import {
   getAnalyticsOverview,
   getFacultyWorkload,
@@ -80,8 +81,11 @@ export default function AnalyticsTab({ toast }) {
   return (
     <div className="analytics-tab">
       <div className="tab-header">
-        <h2 className="tab-title">📊 Timetable Analytics</h2>
-        <button className="btn-ghost" onClick={loadData}>↻ Refresh</button>
+        <h2 className="tab-title">Overview</h2>
+        <button className="btn-ghost" onClick={loadData}>
+          <RefreshCw size={14} aria-hidden="true" />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -114,7 +118,7 @@ export default function AnalyticsTab({ toast }) {
       <div className="analytics-grid">
         {/* Daily Distribution Bar Chart */}
         <div className="chart-card">
-          <h3 className="chart-title">📅 Sessions by Day of Week</h3>
+          <h3 className="chart-title">Sessions by Day of Week</h3>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={daily} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
@@ -134,7 +138,7 @@ export default function AnalyticsTab({ toast }) {
 
         {/* Time-Slot Distribution Pie Chart */}
         <div className="chart-card">
-          <h3 className="chart-title">⏰ Schedule Time Distribution</h3>
+          <h3 className="chart-title">Schedule Time Distribution</h3>
           <div className="chart-container pie-container">
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -161,7 +165,7 @@ export default function AnalyticsTab({ toast }) {
 
         {/* Room Utilization Horizontal Bar Chart */}
         <div className="chart-card full-width">
-          <h3 className="chart-title">🏛️ Room Utilization & Booking Hours</h3>
+          <h3 className="chart-title">Room Utilization &amp; Booking Hours</h3>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={utilization} layout="vertical" margin={{ top: 10, right: 20, left: -10, bottom: 10 }}>
@@ -179,7 +183,7 @@ export default function AnalyticsTab({ toast }) {
 
         {/* Faculty Workload List / Table */}
         <div className="chart-card full-width">
-          <h3 className="chart-title">👨‍🏫 Faculty Workload Distribution</h3>
+          <h3 className="chart-title">Faculty Workload Distribution</h3>
           <div className="faculty-workload-table">
             <div className="table-container" style={{ marginTop: 0 }}>
               <div className="table-wrapper">
@@ -213,8 +217,13 @@ export default function AnalyticsTab({ toast }) {
                                 background: f.totalHours > 12 ? 'var(--accent-orange, #fb923c)' : 'var(--accent-blue, #38bdf8)',
                               }}
                             />
-                            <span className="workload-bar-label">
-                              {f.totalHours > 12 ? '⚠️ High' : '✅ Balanced'}
+                            <span
+                              className="workload-bar-label"
+                              style={{ color: f.totalHours > 12 ? 'var(--accent-amber)' : 'var(--accent-green)' }}
+                            >
+                              {f.totalHours > 12
+                                ? <><AlertTriangle size={12} aria-hidden="true" />High</>
+                                : <><Check size={12} aria-hidden="true" />Balanced</>}
                             </span>
                           </div>
                         </td>

@@ -16,7 +16,7 @@ const pool = mysql.createPool({
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 
 async function seed() {
-  console.log('🌱 Starting database seed with Class-wise Home Rooms & Labs…\n');
+  console.log('Seeding database (class-wise home rooms & labs)…\n');
 
   const hash = (pw) => bcrypt.hash(pw, 10);
 
@@ -27,7 +27,7 @@ async function seed() {
     { name: 'Mechanical Engineering',                  code: 'MECH' },
   ];
 
-  console.log('🏛️ Creating departments…');
+  console.log('Departments');
   const deptIds = {};
   for (const d of departments) {
     const [res] = await pool.query(
@@ -36,11 +36,11 @@ async function seed() {
     );
     if (res.insertId) {
       deptIds[d.code] = res.insertId;
-      console.log(`   ✅ ${d.name} (${d.code})`);
+      console.log(`   created  ${d.name} (${d.code})`);
     } else {
       const [[row]] = await pool.query('SELECT id FROM departments WHERE code = ?', [d.code]);
       deptIds[d.code] = row.id;
-      console.log(`   ⏭️  ${d.name} already exists — skipped`);
+      console.log(`   skipped  ${d.name}`);
     }
   }
 
@@ -49,7 +49,7 @@ async function seed() {
   const mechId  = deptIds['MECH'];
 
   // ─── Semester ─────────────────────────────────────────────
-  console.log('\n📅 Creating semester…');
+  console.log('\nSemester');
   let semesterId;
   const [semRes] = await pool.query(
     `INSERT IGNORE INTO semesters (name, academic_year, term, start_date, end_date, is_active)
@@ -57,11 +57,11 @@ async function seed() {
   );
   if (semRes.insertId) {
     semesterId = semRes.insertId;
-    console.log(`   ✅ Fall 2026 (ID: ${semesterId})`);
+    console.log(`   created  Fall 2026 (ID: ${semesterId})`);
   } else {
     const [[row]] = await pool.query('SELECT id FROM semesters WHERE name = ?', ['Fall 2026']);
     semesterId = row.id;
-    console.log(`   ⏭️  Fall 2026 already exists — skipped`);
+    console.log(`   skipped  Fall 2026`);
   }
 
   // ─── Rooms (Home Classrooms & Labs) ────────────────────────
@@ -80,7 +80,7 @@ async function seed() {
     { name: 'Lab-202',          capacity: 30, is_lab: true },
   ];
 
-  console.log('\n🏛️ Creating rooms (Classrooms & Labs)…');
+  console.log('\nRooms (classrooms & labs)');
   const roomIds = {};
   for (const r of roomData) {
     const [res] = await pool.query(
@@ -89,11 +89,11 @@ async function seed() {
     );
     if (res.insertId) {
       roomIds[r.name] = res.insertId;
-      console.log(`   ✅ ${r.name} (Capacity: ${r.capacity}, Lab: ${r.is_lab})`);
+      console.log(`   created  ${r.name} (Capacity: ${r.capacity}, Lab: ${r.is_lab})`);
     } else {
       const [[row]] = await pool.query('SELECT id FROM rooms WHERE name = ?', [r.name]);
       roomIds[r.name] = row.id;
-      console.log(`   ⏭️  ${r.name} already exists — updated / skipped`);
+      console.log(`   updated  ${r.name}`);
     }
   }
 
@@ -107,7 +107,7 @@ async function seed() {
     { name: 'MECH B', deptId: mechId, homeRoom: 'MECH B Room' },
   ];
 
-  console.log('\n👥 Creating classes…');
+  console.log('\nClasses');
   const classIds = {};
   for (const cl of classData) {
     const homeRoomId = roomIds[cl.homeRoom];
@@ -117,11 +117,11 @@ async function seed() {
     );
     if (res.insertId) {
       classIds[cl.name] = res.insertId;
-      console.log(`   ✅ Class: ${cl.name} (Home: ${cl.homeRoom})`);
+      console.log(`   created  Class: ${cl.name} (Home: ${cl.homeRoom})`);
     } else {
       const [[row]] = await pool.query('SELECT id FROM classes WHERE name = ?', [cl.name]);
       classIds[cl.name] = row.id;
-      console.log(`   ⏭️  Class ${cl.name} already exists — skipped`);
+      console.log(`   skipped  Class ${cl.name}`);
     }
   }
 
@@ -171,7 +171,7 @@ async function seed() {
     { name: 'Manav Joshi',       email: 'manav@student.com',  password: 'Student@123', role: 'student', dept: mechId, classId: mechBId },
   ];
 
-  console.log('\n👤 Creating/updating users…');
+  console.log('\nUsers');
   const userIds = {};
   for (const u of users) {
     const [res] = await pool.query(
@@ -180,11 +180,11 @@ async function seed() {
     );
     if (res.insertId) {
       userIds[u.email] = res.insertId;
-      console.log(`   ✅ ${u.role.padEnd(8)} ${u.name} (${u.email}) — Class: ${u.classId || 'None'}`);
+      console.log(`   created  ${u.role.padEnd(8)} ${u.name} (${u.email}) — Class: ${u.classId || 'None'}`);
     } else {
       const [[row]] = await pool.query('SELECT id FROM users WHERE email = ?', [u.email]);
       userIds[u.email] = row.id;
-      console.log(`   ⏭️  ${u.name} already exists — updated class`);
+      console.log(`   updated  ${u.name} (class)`);
     }
   }
 
@@ -210,7 +210,7 @@ async function seed() {
     { code: 'MECH501', name: 'Robotics Lab',                         dept: mechId, is_lab: true },
   ];
 
-  console.log('\n📚 Creating/updating courses…');
+  console.log('\nCourses');
   const courseIds = {};
   for (const c of courses) {
     const [res] = await pool.query(
@@ -219,11 +219,11 @@ async function seed() {
     );
     if (res.insertId) {
       courseIds[c.code] = res.insertId;
-      console.log(`   ✅ ${c.code} — ${c.name} (Lab: ${c.is_lab})`);
+      console.log(`   created  ${c.code} — ${c.name} (Lab: ${c.is_lab})`);
     } else {
       const [[row]] = await pool.query('SELECT id FROM courses WHERE code = ?', [c.code]);
       courseIds[c.code] = row.id;
-      console.log(`   ⏭️  ${c.code} already exists — updated / skipped`);
+      console.log(`   updated  ${c.code}`);
     }
   }
 
@@ -249,7 +249,7 @@ async function seed() {
     { course: 'MECH501', faculty: 'vikram@school.com' },
   ];
 
-  console.log('\n👨‍🏫 Assigning faculty to courses…');
+  console.log('\nFaculty assignments');
   for (const cf of courseFacultyMap) {
     const cId = courseIds[cf.course];
     const fId = userIds[cf.faculty];
@@ -258,7 +258,7 @@ async function seed() {
       'INSERT IGNORE INTO course_faculty (course_id, faculty_id) VALUES (?, ?)',
       [cId, fId]
     );
-    console.log(`   ✅ ${cf.course} → ${cf.faculty.split('@')[0]}`);
+    console.log(`   created  ${cf.course} → ${cf.faculty.split('@')[0]}`);
   }
 
   // ─── Faculty Availability ─────────────────────────────────
@@ -268,7 +268,7 @@ async function seed() {
     'vikram@school.com', 'sunita@school.com',
   ];
 
-  console.log('\n🕐 Setting faculty availability…');
+  console.log('\nFaculty availability');
   for (const email of facultyEmails) {
     const fId = userIds[email];
     if (!fId) continue;
@@ -279,7 +279,7 @@ async function seed() {
         [fId, day, semesterId]
       );
     }
-    console.log(`   ✅ ${email.split('@')[0]} — MON-FRI 08:00-17:00`);
+    console.log(`   created  ${email.split('@')[0]} — MON-FRI 08:00-17:00`);
   }
 
   // ─── Enrollments ─────────────────────────────────────────
@@ -295,7 +295,7 @@ async function seed() {
     [mechId]: ['MECH101', 'MECH201', 'MECH301', 'MECH401', 'MECH501'],
   };
 
-  console.log('\n👥 Creating enrollments…');
+  console.log('\nEnrollments');
   for (const [deptId, emails] of Object.entries(studentDeptGroups)) {
     const codes = deptCourseCodes[deptId];
     for (const email of emails) {
@@ -306,7 +306,7 @@ async function seed() {
         );
       }
     }
-    console.log(`   ✅ Enrollments seeded for ${emails.length} students in Department ID ${deptId}`);
+    console.log(`   created  Enrollments seeded for ${emails.length} students in Department ID ${deptId}`);
   }
 
   // ─── Timetable Slots (Now with class_id and home rooms vs labs) ──
@@ -336,10 +336,10 @@ async function seed() {
     { course: 'MECH301', classId: mechAId, faculty: vikram,room: 'Lab-202',    day: 'THU', start: '14:00', end: '15:30' }, // Fluid Lab
   ];
 
-  console.log('\n📅 Deleting existing timetable slots before seed…');
+  console.log('\nClearing existing timetable slots…');
   await pool.query('DELETE FROM timetable_slots');
 
-  console.log('\n📅 Creating timetable slots…');
+  console.log('\nTimetable slots');
   for (const s of slots) {
     const cId = courseIds[s.course];
     if (!cId) continue;
@@ -347,10 +347,10 @@ async function seed() {
       'INSERT INTO timetable_slots (course_id, faculty_id, class_id, room, day, start_time, end_time, semester_id) VALUES (?,?,?,?,?,?,?,?)',
       [cId, s.faculty, s.classId, s.room, s.day, s.start, s.end, semesterId]
     );
-    console.log(`   ✅ Class ${s.classId}: ${s.day} ${s.start}-${s.end} | ${s.course} @ ${s.room}`);
+    console.log(`   created  Class ${s.classId}: ${s.day} ${s.start}-${s.end} | ${s.course} @ ${s.room}`);
   }
 
-  console.log('\n✅ Seed complete!\n');
+  console.log('\nSeed complete.\n');
   console.log('Login credentials:');
   console.log('  Admin:   admin@school.com   / Admin@123');
   console.log('  Faculty: priya@school.com   / Faculty@123');
@@ -361,6 +361,6 @@ async function seed() {
 }
 
 seed().catch(err => {
-  console.error('❌ Seed failed:', err.message);
+  console.error('Seed failed:', err.message);
   process.exit(1);
 });

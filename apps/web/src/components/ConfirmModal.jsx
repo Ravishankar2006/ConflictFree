@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import './ConfirmModal.css';
 
 export default function ConfirmModal({ open, title, message, confirmLabel, cancelLabel, onConfirm, onCancel }) {
@@ -7,7 +8,7 @@ export default function ConfirmModal({ open, title, message, confirmLabel, cance
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-modal" onClick={e => e.stopPropagation()}>
         <div className="confirm-header">
-          <div className="confirm-icon">⚠️</div>
+          <div className="confirm-icon" aria-hidden="true"><AlertTriangle size={20} /></div>
           <h3 className="confirm-title">{title || 'Confirm'}</h3>
         </div>
         <p className="confirm-message">{message}</p>

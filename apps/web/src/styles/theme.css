@@ -240,6 +240,62 @@ body {
               color var(--duration-slow) var(--ease-out);
 }
 
+/* ── Icon System ──────────────────────────────────── */
+/* Icons are Lucide stroke SVGs that inherit currentColor, so they follow the
+   active theme automatically. These rules give every icon-bearing control the
+   same baseline alignment instead of relying on font-size, which does nothing
+   for an SVG. */
+
+.btn-primary, .btn-submit, .btn-create, .btn-ghost, .btn-danger, .btn-export,
+.btn-apply, .btn-generate, .toggle-btn, .faculty-tab, .btn-delete-small,
+.btn-edit-small, .chip-remove, .btn-icon-close, .scheduler-status,
+.conflict-type-badge, .workload-bar-label, .bell-courses, .toast-icon,
+.confirm-icon, .violation-icon, .conflict-vs, .empty-state-icon,
+.scheduler-hero-icon, .scheduler-done-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  line-height: 1;
+}
+
+/* Tighter gap where the icon sits inside a compact badge or chip. */
+.conflict-type-badge, .workload-bar-label, .bell-courses, .chip-remove,
+.btn-delete-small, .btn-edit-small {
+  gap: var(--sp-1);
+}
+
+/* An icon must never be squeezed by a long label beside it. */
+button svg, .badge svg, .toast-icon svg, .conflict-type-badge svg,
+.workload-bar-label svg, .bell-courses svg {
+  flex-shrink: 0;
+}
+
+/* Hero glyphs: one large, muted icon standing in for an illustration. */
+.empty-state-icon,
+.scheduler-hero-icon,
+.scheduler-done-icon {
+  justify-content: center;
+  margin-bottom: var(--sp-3);
+}
+
+.empty-state-icon.success { color: var(--accent-green); }
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
+/* Utility used for absent/not-applicable table values. */
+.text-muted { color: var(--text-muted); }
+
 /* ── Scrollbars ───────────────────────────────────── */
 ::-webkit-scrollbar         { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track   { background: transparent; }

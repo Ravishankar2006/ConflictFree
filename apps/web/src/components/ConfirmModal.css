@@ -40,7 +40,7 @@
   margin-bottom: var(--sp-3);
 }
 
-.confirm-icon { font-size: 1.4rem; }
+.confirm-icon { color: var(--accent-red); }
 
 .confirm-title {
   font-size: var(--text-lg);

@@ -1,17 +1,25 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import { AlertOctagon, Calendar, Clock, List, Save } from 'lucide-react';
 import { getMyTimetable, getMyAvailability, updateMyAvailability, downloadIcs } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
+import ExportButtons from './ExportButtons';
+import ViewToggle from './ViewToggle';
 import '../styles/FacultyDashboard.css';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+const VIEW_OPTIONS = [
+  { value: 'calendar', label: 'Calendar', Icon: Calendar },
+  { value: 'list',     label: 'List',     Icon: List },
+];
 const DAY_LABELS = { MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday' };
 
 function scheduleToDays(slots) {
   return DAYS.reduce((acc, d) => { acc[d] = slots.filter(s => s.day === d); return acc; }, {});
 }
 
-function ScheduleView({ timetable, viewMode, setViewMode }) {
+function ScheduleView({ timetable, viewMode }) {
   if (timetable.length === 0) {
     return <div className="empty-state">No classes assigned yet. Contact admin.</div>;
   }
@@ -101,7 +109,7 @@ function AvailabilityPlanner({ toast }) {
   return (
     <div className="availability-planner">
       <div className="planner-header">
-        <h2 className="dashboard-title">⏰ Weekly Availability</h2>
+        <h2 className="dashboard-title">Weekly Availability</h2>
         <p className="planner-subtitle">
           Set the hours you are available for teaching each day. The AI scheduler uses this to avoid scheduling outside your availability.
         </p>
@@ -148,7 +156,9 @@ function AvailabilityPlanner({ toast }) {
 
       <div className="planner-actions">
         <button className="btn-submit" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : '💾 Save Availability'}
+          {saving
+            ? 'Saving…'
+            : <><Save size={15} aria-hidden="true" />Save Availability</>}
         </button>
       </div>
     </div>
@@ -212,7 +222,7 @@ export default function FacultyDashboard() {
       {violations.length > 0 && (
         <div className="violation-banner">
           <div className="violation-banner-header">
-            <span className="violation-icon">🚫</span>
+            <span className="violation-icon" aria-hidden="true"><AlertOctagon size={18} /></span>
             <span className="violation-title">Availability Conflict Detected</span>
           </div>
           <p className="violation-text">
@@ -236,13 +246,15 @@ export default function FacultyDashboard() {
           className={`faculty-tab ${tab === 'schedule' ? 'active' : ''}`}
           onClick={() => setTab('schedule')}
         >
-          📅 My Schedule
+          <Calendar size={14} aria-hidden="true" />
+          <span>My Schedule</span>
         </button>
         <button
           className={`faculty-tab ${tab === 'availability' ? 'active' : ''}`}
           onClick={() => setTab('availability')}
         >
-          ⏰ My Availability
+          <Clock size={14} aria-hidden="true" />
+          <span>My Availability</span>
         </button>
       </div>
 
@@ -250,19 +262,16 @@ export default function FacultyDashboard() {
         <>
           <div ref={printRef}>
             <div className="dash-header">
-              <h2 className="dashboard-title">🎓 My Teaching Schedule</h2>
+              <h2 className="dashboard-title">My Teaching Schedule</h2>
               <div className="screen-only dash-header-right">
-                <div className="view-toggle">
-                  <button className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('calendar')}>📅 Calendar</button>
-                  <button className={viewMode === 'list' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('list')}>☰ List</button>
-                </div>
-                <div className="export-buttons">
-                  <button className="btn-export" onClick={() => downloadIcs().catch(() => {})} title="Download .ics calendar file">📅 ICS</button>
-                  <button className="btn-export" onClick={handlePrint} title="Print / Save as PDF">🖨️ PDF</button>
-                </div>
+                <ViewToggle mode={viewMode} onChange={setViewMode} options={VIEW_OPTIONS} />
+                <ExportButtons
+                  onIcs={() => downloadIcs().catch(() => {})}
+                  onPrint={handlePrint}
+                />
               </div>
             </div>
-            <ScheduleView timetable={timetable} viewMode={viewMode} setViewMode={setViewMode} />
+            <ScheduleView timetable={timetable} viewMode={viewMode} />
           </div>
         </>
       )}

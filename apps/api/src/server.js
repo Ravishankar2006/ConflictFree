@@ -68,11 +68,11 @@ app.get('/api/db-test', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
-  console.log(`✅ API running on http://localhost:${PORT}`);
+  console.log(`API running on http://localhost:${PORT}`);
   try {
     await prisma.$queryRaw`SELECT 1`;
-    console.log('✅ Prisma DB connection OK');
+    console.log('Prisma database connection OK');
   } catch (err) {
-    console.error('❌ DB connection failed:', err.message);
+    console.error('Database connection failed:', err.message);
   }
 });

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { ArrowLeftRight, Bell } from 'lucide-react';
 import { getConflicts } from '../services/api';
 import './NotificationBell.css';
 
@@ -40,7 +41,7 @@ export default function NotificationBell() {
         onClick={() => setOpen(o => !o)}
         aria-label={`${count} conflict${count !== 1 ? 's' : ''} detected`}
       >
-        🔔
+        <Bell size={16} aria-hidden="true" />
         {count > 0 && (
           <span className="bell-badge">{count > 9 ? '9+' : count}</span>
         )}
@@ -53,7 +54,7 @@ export default function NotificationBell() {
             {count > 0 && <span className="bell-count-tag">{count} active</span>}
           </div>
           {conflicts.length === 0 ? (
-            <div className="bell-empty">No conflicts detected 🎉</div>
+            <div className="bell-empty">No conflicts detected</div>
           ) : (
             <ul className="bell-list">
               {conflicts.slice(0, 5).map((c, i) => (
@@ -63,7 +64,7 @@ export default function NotificationBell() {
                   </span>
                   <div className="bell-details">
                     <span>{c.day} · {c.timeA} vs {c.timeB}</span>
-                    <span className="bell-courses">{c.courseA} ↔ {c.courseB}</span>
+                    <span className="bell-courses">{c.courseA}<ArrowLeftRight size={11} aria-hidden="true" />{c.courseB}</span>
                   </div>
                 </li>
               ))}

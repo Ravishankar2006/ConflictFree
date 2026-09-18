@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import { Calendar, List } from 'lucide-react';
 import { getMyTimetable, downloadIcs } from '../services/api';
 import TimetableCalendar from './TimetableCalendar';
+import ExportButtons from './ExportButtons';
+import ViewToggle from './ViewToggle';
 import '../styles/StudentDashboard.css';
 
 export default function StudentDashboard() {
@@ -10,6 +13,11 @@ export default function StudentDashboard() {
   const [error, setError]         = useState('');
   const [viewMode, setViewMode]   = useState('calendar');
   const printRef = useRef();
+
+  const VIEW_OPTIONS = [
+    { value: 'calendar', label: 'Calendar', Icon: Calendar },
+    { value: 'list',     label: 'List',     Icon: List },
+  ];
 
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
@@ -59,16 +67,13 @@ export default function StudentDashboard() {
     <div className="student-dashboard">
       <div ref={printRef}>
         <div className="dash-header">
-          <h2 className="dashboard-title">📚 My Timetable</h2>
+          <h2 className="dashboard-title">My Timetable</h2>
           <div className="screen-only dash-header-right">
-            <div className="view-toggle">
-              <button className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('calendar')}>📅 Calendar</button>
-              <button className={viewMode === 'list' ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setViewMode('list')}>☰ List</button>
-            </div>
-            <div className="export-buttons">
-              <button className="btn-export" onClick={() => downloadIcs().catch(() => {})} title="Download .ics calendar file">📅 ICS</button>
-              <button className="btn-export" onClick={handlePrint} title="Print / Save as PDF">🖨️ PDF</button>
-            </div>
+            <ViewToggle mode={viewMode} onChange={setViewMode} options={VIEW_OPTIONS} />
+            <ExportButtons
+              onIcs={() => downloadIcs().catch(() => {})}
+              onPrint={handlePrint}
+            />
           </div>
         </div>
 

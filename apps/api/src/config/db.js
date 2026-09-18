@@ -20,7 +20,7 @@ export async function testConnection() {
   const connection = await pool.getConnection();
   try {
     await connection.ping();
-    console.log('✅ MySQL connection OK');
+    console.log('MySQL connection OK');
   } finally {
     connection.release();
   }

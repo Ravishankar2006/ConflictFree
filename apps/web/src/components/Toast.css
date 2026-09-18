@@ -54,7 +54,7 @@
   color: var(--accent-primary);
 }
 
-.toast-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.toast-icon { flex-shrink: 0; margin-top: 1px; }
 
 .toast-message { flex: 1; line-height: 1.45; color: inherit; }
 
@@ -62,7 +62,6 @@
   background: none;
   border: none;
   color: inherit;
-  font-size: 1.1rem;
   cursor: pointer;
   opacity: 0.55;
   padding: 0;

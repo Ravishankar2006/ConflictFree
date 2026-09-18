@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import {
+  ArrowLeftRight, Ban, Bot, Calendar, Check, CheckCircle2, Clock, Database,
+  DoorOpen, Loader2, Plus, RefreshCw, Sparkles, Table2, Trash2, User, UserPlus, X,
+} from 'lucide-react';
+import {
   getAllSlots, createSlot, updateSlot, deleteSlot,
   getConflicts, resolveConflict,
   getCourses, createCourse, deleteCourse,
@@ -16,9 +20,29 @@ import TimetableCalendar from './TimetableCalendar';
 import ConfirmModal from './ConfirmModal';
 import ToastContainer, { useToast } from './Toast';
 import AnalyticsTab from './AnalyticsTab';
+import ExportButtons from './ExportButtons';
+import ViewToggle from './ViewToggle';
 import '../styles/AdminDashboard.css';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+const TIMETABLE_VIEWS = [
+  { value: 'calendar', label: 'Calendar', Icon: Calendar },
+  { value: 'table',    label: 'Table',    Icon: Table2 },
+];
+
+const TAB_TITLES = {
+  timetable:   'Timetable Management',
+  scheduler:   'AI Timetable Generator',
+  conflicts:   'Conflict Resolution',
+  courses:     'Course Management',
+  classes:     'Class Management',
+  departments: 'Department Management',
+  rooms:       'Room Management',
+  users:       'User Management',
+  enrollments: 'Enrollment Management',
+  analytics:   'Timetable Analytics',
+};
 
 const EMPTY_SLOT = { course_id: '', room: '', faculty_id: '', day: 'MON', start_time: '', end_time: '', class_id: '' };
 
@@ -213,30 +237,26 @@ function TimetableTab({ toast }) {
               ))}
             </select>
           </div>
-          <div className="view-toggle">
-            <button
-              className={viewMode === 'calendar' ? 'toggle-btn active' : 'toggle-btn'}
-              onClick={() => setViewMode('calendar')}
-            >📅 Calendar</button>
-            <button
-              className={viewMode === 'table' ? 'toggle-btn active' : 'toggle-btn'}
-              onClick={() => setViewMode('table')}
-            >📋 Table</button>
-          </div>
-          <div className="export-buttons">
-            <button className="btn-export" onClick={() => downloadIcs().catch(() => {})} title="Download .ics calendar file">📅 ICS</button>
-            <button className="btn-export" onClick={handlePrint} title="Print / Save as PDF">🖨️ PDF</button>
-          </div>
+          <ViewToggle mode={viewMode} onChange={setViewMode} options={TIMETABLE_VIEWS} />
+          <ExportButtons
+            onIcs={() => downloadIcs().catch(() => {})}
+            onPrint={handlePrint}
+          />
         </div>
-        <button className="btn-create" onClick={openCreate}>+ New Slot</button>
+        <button className="btn-create" onClick={openCreate}>
+          <Plus size={14} aria-hidden="true" />
+          <span>New Slot</span>
+        </button>
       </div>
 
       {/* Create/Edit Form (screen only) */}
       {showForm && (
         <div className="screen-only form-card">
           <div className="form-card-header">
-            <h3>{editingId ? '✏️ Edit Slot' : '+ Create New Slot'}</h3>
-            <button className="btn-icon-close" onClick={closeForm}>✕</button>
+            <h3>{editingId ? 'Edit Slot' : 'Create New Slot'}</h3>
+            <button className="btn-icon-close" onClick={closeForm} aria-label="Close form">
+              <X size={16} />
+            </button>
           </div>
           <form onSubmit={handleSubmit} className="form-grid">
             <div className="form-group">
@@ -274,7 +294,7 @@ function TimetableTab({ toast }) {
               >
                 <option value="">Select a room…</option>
                 {rooms.map(r => (
-                  <option key={r.id} value={r.name}>{r.name} (capacity: {r.capacity}){r.is_lab ? ' 🔬 Lab' : ''}</option>
+                  <option key={r.id} value={r.name}>{r.name} (capacity: {r.capacity}){r.is_lab ? ' · Lab' : ''}</option>
                 ))}
               </select>
             </div>
@@ -329,7 +349,7 @@ function TimetableTab({ toast }) {
 
       {/* Print area: stats + timetable (full content for PDF) */}
       <div ref={printRef}>
-        <h2 className="print-only dashboard-title">📅 Timetable</h2>
+        <h2 className="print-only dashboard-title">Timetable</h2>
         <div className="stats-grid">
           {[
             { label: 'Total Slots', value: stats.total,   color: 'blue'   },
@@ -433,14 +453,19 @@ function ConflictsTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-header">
-        <h2 className="tab-title">⚠️ Active Conflicts</h2>
-        <button className="btn-ghost" onClick={load}>↻ Refresh</button>
+        <h2 className="tab-title">Active Conflicts</h2>
+        <button className="btn-ghost" onClick={load}>
+          <RefreshCw size={14} aria-hidden="true" />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {conflicts.length === 0 ? (
         <div className="empty-state conflict-clear">
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎉</div>
-          No conflicts detected! All timetable slots are clear.
+          <div className="empty-state-icon success" aria-hidden="true">
+            <CheckCircle2 size={40} />
+          </div>
+          No conflicts detected. All timetable slots are clear.
         </div>
       ) : (
         <div className="conflict-list">
@@ -451,9 +476,9 @@ function ConflictsTab({ toast }) {
                   c.conflictType === 'ROOM' ? 'type-room' : 
                   c.conflictType === 'FACULTY' ? 'type-faculty' : 'type-availability'
                 }`}>
-                  {c.conflictType === 'ROOM' && '🏫 Room Conflict'}
-                  {c.conflictType === 'FACULTY' && '👤 Faculty Conflict'}
-                  {c.conflictType === 'AVAILABILITY' && '⏰ Availability Conflict'}
+                  {c.conflictType === 'ROOM' && <><DoorOpen size={12} aria-hidden="true" />Room Conflict</>}
+                  {c.conflictType === 'FACULTY' && <><User size={12} aria-hidden="true" />Faculty Conflict</>}
+                  {c.conflictType === 'AVAILABILITY' && <><Clock size={12} aria-hidden="true" />Availability Conflict</>}
                 </span>
                 <span className="conflict-day">{c.day}</span>
               </div>
@@ -464,7 +489,7 @@ function ConflictsTab({ toast }) {
                 </div>
                 {c.conflictType !== 'AVAILABILITY' ? (
                   <>
-                    <div className="conflict-vs">↔</div>
+                    <div className="conflict-vs" aria-hidden="true"><ArrowLeftRight size={16} /></div>
                     <div className="conflict-slot-b">
                       <strong>{c.courseB}</strong>
                       <span>{c.timeB} · {c.conflictType === 'ROOM' ? c.room : c.facultyName}</span>
@@ -472,7 +497,7 @@ function ConflictsTab({ toast }) {
                   </>
                 ) : (
                   <>
-                    <div className="conflict-vs">🚫</div>
+                    <div className="conflict-vs" aria-hidden="true"><Ban size={16} /></div>
                     <div className="conflict-slot-b">
                       <strong>Unavailable Time</strong>
                       <span style={{ color: 'var(--accent-red)' }}>{c.timeB}</span>
@@ -613,9 +638,11 @@ function CoursesTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-controls">
-        <h2 className="tab-title">📚 Courses ({courses.length})</h2>
+        <h2 className="tab-title">Courses ({courses.length})</h2>
         <button className="btn-create" onClick={() => setShowForm(s => !s)}>
-          {showForm ? '✕ Cancel' : '+ New Course'}
+          {showForm
+            ? <><X size={14} aria-hidden="true" /><span>Cancel</span></>
+            : <><Plus size={14} aria-hidden="true" /><span>New Course</span></>}
         </button>
       </div>
 
@@ -660,21 +687,41 @@ function CoursesTab({ toast }) {
                   <tr key={c.id}>
                     <td><span className="course-code-badge">{c.code}</span></td>
                     <td>{c.name}</td>
-                    <td>{c.is_lab ? '✅' : '—'}</td>
+                    <td>{c.is_lab
+                      ? <Check size={14} aria-label="Lab" style={{ color: 'var(--accent-green)' }} />
+                      : <span className="text-muted" aria-label="Not a lab">—</span>}</td>
                     <td>
                       {(assignments[c.id] || []).map(f => (
                         <span key={f.id} className="faculty-chip">
                           {f.name}
-                          <button className="chip-remove" onClick={() => handleRemoveFaculty(c.id, f.id, f.name)}>✕</button>
+                          <button
+                            className="chip-remove"
+                            onClick={() => handleRemoveFaculty(c.id, f.id, f.name)}
+                            aria-label={`Remove ${f.name} from ${c.code}`}
+                          >
+                            <X size={11} />
+                          </button>
                         </span>
                       ))}
                       {(assignments[c.id] || []).length === 0 && <span className="text-muted">No faculty assigned</span>}
                     </td>
                     <td className="table-actions">
-                      <button className="btn-edit-small" onClick={() => setExpandedCourse(expandedCourse === c.id ? null : c.id)}>
-                        👨‍🏫
+                      <button
+                        className="btn-edit-small"
+                        onClick={() => setExpandedCourse(expandedCourse === c.id ? null : c.id)}
+                        aria-label={`Assign faculty to ${c.code}`}
+                        title="Assign faculty"
+                      >
+                        <UserPlus size={14} />
                       </button>
-                      <button className="btn-delete-small" onClick={() => handleDelete(c.id, c.code)}>🗑️</button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => handleDelete(c.id, c.code)}
+                        aria-label={`Delete course ${c.code}`}
+                        title="Delete course"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -790,9 +837,11 @@ function EnrollmentsTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-controls">
-        <h2 className="tab-title">👥 Enrollments ({enrollments.length})</h2>
+        <h2 className="tab-title">Enrollments ({enrollments.length})</h2>
         <button className="btn-create" onClick={() => setShowForm(s => !s)}>
-          {showForm ? '✕ Cancel' : '+ Enroll Student'}
+          {showForm
+            ? <><X size={14} aria-hidden="true" /><span>Cancel</span></>
+            : <><Plus size={14} aria-hidden="true" /><span>Enroll Student</span></>}
         </button>
       </div>
 
@@ -836,7 +885,14 @@ function EnrollmentsTab({ toast }) {
                     <td style={{ color: 'var(--text-muted)' }}>{e.student_email}</td>
                     <td><span className="course-code-badge">{e.course_code}</span> {e.course_name}</td>
                     <td>
-                      <button className="btn-delete-small" onClick={() => handleDelete(e.id)}>🗑️</button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => handleDelete(e.id)}
+                        aria-label="Delete enrollment"
+                        title="Delete enrollment"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -917,9 +973,11 @@ function RoomsTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-controls">
-        <h2 className="tab-title">🏛️ Rooms ({rooms.length})</h2>
+        <h2 className="tab-title">Rooms ({rooms.length})</h2>
         <button className="btn-create" onClick={() => setShowForm(s => !s)}>
-          {showForm ? '✕ Cancel' : '+ New Room'}
+          {showForm
+            ? <><X size={14} aria-hidden="true" /><span>Cancel</span></>
+            : <><Plus size={14} aria-hidden="true" /><span>New Room</span></>}
         </button>
       </div>
 
@@ -961,9 +1019,18 @@ function RoomsTab({ toast }) {
                     <td>{r.id}</td>
                     <td>{r.name}</td>
                     <td>{r.capacity}</td>
-                    <td>{r.is_lab ? '✅' : '—'}</td>
+                    <td>{r.is_lab
+                      ? <Check size={14} aria-label="Lab" style={{ color: 'var(--accent-green)' }} />
+                      : <span className="text-muted" aria-label="Not a lab">—</span>}</td>
                     <td>
-                      <button className="btn-delete-small" onClick={() => handleDelete(r.id, r.name)}>🗑️</button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => handleDelete(r.id, r.name)}
+                        aria-label={`Delete room ${r.name}`}
+                        title="Delete room"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1044,9 +1111,11 @@ function DepartmentsTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-controls">
-        <h2 className="tab-title">🏢 Departments ({departments.length})</h2>
+        <h2 className="tab-title">Departments ({departments.length})</h2>
         <button className="btn-create" onClick={() => setShowForm(s => !s)}>
-          {showForm ? '✕ Cancel' : '+ Add Department'}
+          {showForm
+            ? <><X size={14} aria-hidden="true" /><span>Cancel</span></>
+            : <><Plus size={14} aria-hidden="true" /><span>Add Department</span></>}
         </button>
       </div>
 
@@ -1083,7 +1152,14 @@ function DepartmentsTab({ toast }) {
                     <td><span className="course-code-badge">{d.code}</span></td>
                     <td style={{ color: 'var(--text-muted)' }}>{d.head?.name || '—'}</td>
                     <td>
-                      <button className="btn-delete-small" onClick={() => handleDelete(d.id, d.name)}>🗑️</button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => handleDelete(d.id, d.name)}
+                        aria-label={`Delete department ${d.name}`}
+                        title="Delete department"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1165,7 +1241,7 @@ function UsersTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-controls">
-        <h2 className="tab-title">👤 User Management ({users.length})</h2>
+        <h2 className="tab-title">User Management ({users.length})</h2>
         <div className="tab-controls-right">
           <select
             value={roleFilter}
@@ -1177,7 +1253,9 @@ function UsersTab({ toast }) {
             <option value="student">Students</option>
           </select>
           <button className="btn-create" onClick={() => setShowForm(s => !s)}>
-            {showForm ? '✕ Cancel' : '+ New User'}
+            {showForm
+            ? <><X size={14} aria-hidden="true" /><span>Cancel</span></>
+            : <><Plus size={14} aria-hidden="true" /><span>New User</span></>}
           </button>
         </div>
       </div>
@@ -1229,7 +1307,14 @@ function UsersTab({ toast }) {
                     <td style={{ color: 'var(--text-muted)' }}>{u.email}</td>
                     <td><span className={`role-badge role-${u.role}`}>{u.role}</span></td>
                     <td>
-                      <button className="btn-delete-small" onClick={() => handleDelete(u.id, u.name)}>🗑️</button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => handleDelete(u.id, u.name)}
+                        aria-label={`Delete user ${u.name}`}
+                        title="Delete user"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1359,7 +1444,7 @@ function SchedulerTab({ toast }) {
       {step === 'idle' && (
         <div className="scheduler-idle">
           <div className="scheduler-hero">
-            <div className="scheduler-hero-icon">🤖</div>
+            <div className="scheduler-hero-icon" aria-hidden="true"><Bot size={44} /></div>
             <h2 className="scheduler-hero-title">AI Timetable Generator</h2>
             <p className="scheduler-hero-desc">
               Automatically generate a conflict-free timetable based on your courses,
@@ -1368,7 +1453,7 @@ function SchedulerTab({ toast }) {
           </div>
 
           <div className="scheduler-config-card">
-            <h3 className="scheduler-config-title">⚙️ Generation Parameters</h3>
+            <h3 className="scheduler-config-title">Generation Parameters</h3>
 
             <div className="scheduler-param-row">
               <div className="scheduler-param-group">
@@ -1421,7 +1506,9 @@ function SchedulerTab({ toast }) {
                     title={config.excludedDays.includes(day) ? `Include ${DAY_LABELS[day]}` : `Exclude ${DAY_LABELS[day]}`}
                   >
                     {day.slice(0, 3)}
-                    {config.excludedDays.includes(day) && <span className="scheduler-day-x">✕</span>}
+                    {config.excludedDays.includes(day) && (
+                      <span className="scheduler-day-x" aria-hidden="true"><X size={9} strokeWidth={3} /></span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1472,7 +1559,8 @@ function SchedulerTab({ toast }) {
           </div>
 
           <button className="btn-generate" onClick={handleGenerate}>
-            🚀 Generate Timetable
+            <Sparkles size={16} aria-hidden="true" />
+            <span>Generate Timetable</span>
           </button>
         </div>
       )}
@@ -1481,7 +1569,10 @@ function SchedulerTab({ toast }) {
       {step === 'generating' && (
         <div className="scheduler-generating">
           <div className="scheduler-spinner" />
-          <p className="scheduler-status">🤖 AI is solving the timetable...</p>
+          <p className="scheduler-status">
+            <Loader2 size={14} className="spin" aria-hidden="true" />
+            <span>Solving the timetable…</span>
+          </p>
           <p className="scheduler-status-sub">Finding optimal slot assignments</p>
         </div>
       )}
@@ -1511,13 +1602,17 @@ function SchedulerTab({ toast }) {
               )}
             </div>
             <div className="scheduler-preview-actions">
-              <button className="btn-ghost" onClick={handleRegenerate}>🔀 Regenerate</button>
+              <button className="btn-ghost" onClick={handleRegenerate}>
+                <RefreshCw size={14} aria-hidden="true" />
+                <span>Regenerate</span>
+              </button>
               <button
                 className="btn-apply"
                 onClick={handleApply}
                 disabled={!generated.slots?.length}
               >
-                💾 Apply to Database
+                <Database size={15} aria-hidden="true" />
+                <span>Apply to Database</span>
               </button>
             </div>
           </div>
@@ -1531,7 +1626,7 @@ function SchedulerTab({ toast }) {
 
           {generated.unassigned?.length > 0 && (
             <div className="scheduler-unassigned">
-              <h3>⚠️ Could not schedule ({generated.unassigned.length})</h3>
+              <h3>Could not schedule ({generated.unassigned.length})</h3>
               <ul>
                 {generated.unassigned.map((u, i) => (
                   <li key={i}>
@@ -1548,8 +1643,8 @@ function SchedulerTab({ toast }) {
       {/* Done state */}
       {step === 'done' && (
         <div className="scheduler-done">
-          <div className="scheduler-done-icon">✅</div>
-          <h2>Timetable Applied Successfully!</h2>
+          <div className="scheduler-done-icon" aria-hidden="true"><CheckCircle2 size={44} /></div>
+          <h2>Timetable applied successfully</h2>
           <p>{generated?.stats?.placed ?? generated?.slots?.length ?? 0} slots saved to database.</p>
           <div className="scheduler-done-actions">
             <button className="btn-ghost" onClick={reset}>Generate Another</button>
@@ -1633,9 +1728,11 @@ function ClassesTab({ toast }) {
   return (
     <div className="admin-tab">
       <div className="tab-controls">
-        <h2 className="tab-title">🏫 Classes ({classes.length})</h2>
+        <h2 className="tab-title">Classes ({classes.length})</h2>
         <button className="btn-create" onClick={() => setShowForm(s => !s)}>
-          {showForm ? '✕ Cancel' : '+ New Class'}
+          {showForm
+            ? <><X size={14} aria-hidden="true" /><span>Cancel</span></>
+            : <><Plus size={14} aria-hidden="true" /><span>New Class</span></>}
         </button>
       </div>
 
@@ -1689,7 +1786,14 @@ function ClassesTab({ toast }) {
                     <td>{c.department?.name}</td>
                     <td>{c.home_room?.name}</td>
                     <td>
-                      <button className="btn-delete-small" onClick={() => handleDelete(c.id, c.name)}>🗑️</button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => handleDelete(c.id, c.name)}
+                        aria-label={`Delete class ${c.name}`}
+                        title="Delete class"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1737,18 +1841,7 @@ export default function AdminDashboard({ activeTab = 'timetable', onTabChange })
     <div className="admin-dashboard">
       <div className="admin-inner">
         <div className="admin-page-header">
-          <h1 className="admin-page-title">
-            {activeTab === 'timetable'   && '📅 Timetable Management'}
-            {activeTab === 'scheduler'   && '🤖 AI Timetable Generator'}
-            {activeTab === 'conflicts'   && '⚠️ Conflict Resolution'}
-            {activeTab === 'courses'     && '📚 Course Management'}
-            {activeTab === 'classes'     && '🏫 Class Management'}
-            {activeTab === 'departments' && '🏢 Department Management'}
-            {activeTab === 'rooms'       && '🏛️ Room Management'}
-            {activeTab === 'users'       && '👤 User Management'}
-            {activeTab === 'enrollments' && '👥 Enrollment Management'}
-            {activeTab === 'analytics'   && '📊 Timetable Analytics'}
-          </h1>
+          <h1 className="admin-page-title">{TAB_TITLES[activeTab] ?? TAB_TITLES.timetable}</h1>
         </div>
         {renderTab()}
       </div>
