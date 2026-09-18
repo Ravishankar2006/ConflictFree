@@ -23,7 +23,7 @@ A full-stack university timetable management system with real-time conflict dete
 | Layer | Technology |
 |---|---|
 | Frontend | React 19 · Vite 7 · React Router 7 · Axios · Vanilla CSS |
-| Backend | Node.js · Express 5 · MySQL2 · JWT · bcrypt |
+| Backend | Node.js · Express 5 · Prisma 6 · MySQL2 · JWT · bcrypt |
 | Database | MySQL 8 |
 | DevOps | Docker Compose · npm workspaces · concurrently |
 
@@ -77,11 +77,14 @@ cp apps/web/.env.example apps/web/.env
 
 Edit `apps/api/.env` and set your database credentials and a strong `JWT_SECRET`.
 
-### 3. Create the database and run schema
+### 3. Create the database and apply migrations
 
 ```bash
-mysql -u root -p < apps/api/src/config/schema.sql
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS smart_timetable"
+cd apps/api && npx prisma migrate deploy
 ```
+
+Schema is managed by Prisma migrations in `apps/api/prisma/migrations`.
 
 ### 4. Seed sample data (optional)
 
@@ -95,7 +98,7 @@ This creates sample users, courses, timetable slots, and enrollments.
 | Role | Email | Password |
 |---|---|---|
 | Admin | admin@school.com | Admin@123 |
-| Faculty | anika@school.com | Faculty@123 |
+| Faculty | priya@school.com | Faculty@123 |
 | Student | alice@student.com | Student@123 |
 
 ### 5. Start development servers
@@ -110,13 +113,44 @@ npm run dev
 
 ---
 
-## Docker (optional)
+## Docker (recommended)
+
+Brings up MySQL, the API and the web app together. One command, no manual setup:
 
 ```bash
-docker-compose up --build
+docker compose up --build -d
 ```
 
-> Make sure to update `MYSQL_ROOT_PASSWORD` and `JWT_SECRET` in `docker-compose.yml` before using in any shared environment.
+- Web: http://localhost:5173
+- API: http://localhost:5000
+
+On first start the API container generates the Prisma client, applies migrations, then
+seeds the database. The seed only runs against an empty database, so restarting never
+overwrites your data. Sign in with the credentials in the table above.
+
+```bash
+docker compose logs -f api   # follow startup and API logs
+docker compose down          # stop everything (the db volume persists)
+```
+
+### Do I need a `.env` file?
+
+**Not for Docker.** `.env` files are deliberately not committed, but `docker-compose.yml`
+supplies every variable the containers need — including `DATABASE_URL`, which Prisma
+requires. A fresh clone runs with no configuration.
+
+You do need them for local development without Docker — see step 2 above.
+
+Two things to know if you keep a local `.env` around:
+
+- `apps/api` is bind-mounted into the API container, so your host `.env` is visible
+  inside it. Values set by compose still win (`dotenv` does not override variables that
+  are already set), so a local `.env` pointing at `localhost` will not break the stack.
+- `DB_NAME` differs between the two paths: local development uses `smart_timetable`,
+  while compose creates `timetable_db`.
+
+> Change `MYSQL_ROOT_PASSWORD` and `JWT_SECRET` in `docker-compose.yml` before using this
+> anywhere shared. The defaults are for local development only.
 
 ---
 
