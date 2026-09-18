@@ -35,8 +35,9 @@ A full-stack university timetable management system with real-time conflict dete
 conflictfree/
 ├── apps/
 │   ├── api/          # Express REST API
+│   │   ├── prisma/            # schema.prisma + versioned migrations
 │   │   └── src/
-│   │       ├── config/        # DB pool, schema.sql, seed.js
+│   │       ├── config/        # Prisma client, seed.js
 │   │       ├── controllers/   # Route handlers
 │   │       ├── middleware/    # JWT auth + role guard
 │   │       ├── models/        # (data layer — in progress)
